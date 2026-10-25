@@ -38,13 +38,147 @@ body { overflow: hidden; }
   overflow: auto;
 }
 
-.top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 32px;
-  padding: 28px 36px 0;
+.dash, .story { flex-shrink: 0; }
+
+.dash {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.15fr) minmax(200px, 0.8fr) minmax(220px, 0.9fr);
+  gap: 22px;
+  align-items: start;
+  padding: 18px 36px 0;
 }
+
+.leaderboard, .minimap-wrap {
+  border: 1px solid var(--line);
+  padding: 12px 14px 14px;
+  min-height: 168px;
+}
+
+.player, .lever-readout, .setup-lead, #share-sum, #save-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.lb-body {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+#figure {
+  width: 72px;
+  height: 108px;
+  flex: none;
+  color: var(--ink);
+}
+
+.leaderboard .stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 0;
+}
+
+.lever-readout { margin-top: 10px; }
+
+.brand { padding-top: 4px; }
+
+.switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 12px;
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.switch input { accent-color: var(--ink); }
+
+#minimap { margin-top: 8px; }
+
+.mini-fork, .mini-path, .mini-row, .mini-shared {
+  display: flex;
+  gap: 3px;
+}
+
+.mini-fork { gap: 10px; margin-bottom: 8px; }
+
+.mini-shared {
+  flex-wrap: wrap;
+  max-width: 132px;
+}
+
+.mini {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 1px solid rgba(243, 240, 232, 0.35);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.mini.passed { border-color: var(--ink); }
+
+.mini.now {
+  border-radius: 50%;
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+.mini-path.off { opacity: 0.28; }
+
+#setup { margin-bottom: 16px; }
+
+.setup-lead { max-width: 36rem; font-family: var(--serif); font-size: 16px; }
+
+.presets, .shares, .name-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.shares label, .name-row label {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.shares input, #game-name {
+  width: 4.5rem;
+  margin-left: 8px;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--ink);
+  font: 16px/1.4 var(--mono);
+  padding: 2px 0;
+}
+
+#game-name { width: 12rem; }
+
+#share-sum, #save-note { margin-top: 8px; }
+
+#setup.locked .setup-lead,
+#setup.locked .presets,
+#setup.locked .shares,
+#setup.locked #share-sum { display: none; }
+
+#setup[hidden] { display: none; }
 
 .eyebrow, .dek, .kicker, .path-name, .fine, .stats dt, .seed-row label {
   letter-spacing: 0.22em;
@@ -62,18 +196,12 @@ h1 {
   font-family: var(--serif);
   font-weight: 500;
   font-style: italic;
-  font-size: clamp(64px, 9vw, 96px);
+  font-size: clamp(48px, 6vw, 72px);
   line-height: 0.78;
   letter-spacing: -0.045em;
 }
 
-.stats {
-  display: flex;
-  gap: 28px;
-  margin: 0 0 10px;
-}
-
-.stats div { min-width: 88px; }
+.stats div { min-width: 0; }
 
 .stats dt {
   margin: 0 0 4px;
@@ -84,7 +212,7 @@ h1 {
 .stats dd {
   margin: 0;
   font-family: var(--serif);
-  font-size: clamp(26px, 3vw, 36px);
+  font-size: clamp(18px, 2vw, 26px);
   font-variant-numeric: tabular-nums lining-nums;
   line-height: 1;
 }
@@ -146,6 +274,11 @@ h2 {
   gap: 18px 28px;
   min-height: 0;
   margin-top: 16px;
+}
+
+.path-begin:disabled {
+  opacity: 0.38;
+  cursor: default;
 }
 
 .choice, .text-btn, .path-begin {
@@ -385,13 +518,16 @@ button:focus-visible, a:focus-visible, input:focus-visible, .space:focus-visible
   outline-offset: 3px;
 }
 
+@media (max-width: 900px) {
+  .dash { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 720px) {
-  .top, .story, .board-scroll, .dock, .fine { padding-left: 18px; padding-right: 18px; }
+  .dash, .story, .board-scroll, .dock, .fine { padding-left: 18px; padding-right: 18px; }
   .log-wrap { margin-left: 18px; margin-right: 18px; }
-  .top { flex-direction: column; align-items: flex-start; }
   .fork { flex-direction: column; }
-  h1 { font-size: 84px; }
-  .stats { margin-bottom: 16px; }
+  h1 { font-size: 64px; }
+  .leaderboard .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wheel-wrap, #wheel { width: 120px; height: 120px; }
   #act { width: 68px; height: 68px; }
 }
