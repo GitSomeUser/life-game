@@ -1,4 +1,14 @@
-import { choosePath, createGame, currentSpace, multipliers, portraitStats, resolveChoice, spin } from "./engine.mjs";
+import { deathMarkup } from "./death.mjs";
+import {
+  choosePath,
+  createGame,
+  currentSpace,
+  deathProbability,
+  portraitStats,
+  resolveChoice,
+  spin,
+  triangleRates,
+} from "./engine.mjs";
 
 const boardEl = document.querySelector("#board");
 const kickerEl = document.querySelector("#kicker");
@@ -13,15 +23,18 @@ const cashEl = document.querySelector("#cash");
 const savingsEl = document.querySelector("#savings");
 const payEl = document.querySelector("#pay");
 const expensesEl = document.querySelector("#expenses");
-const happyEl = document.querySelector("#happy");
+const deathChanceEl = document.querySelector("#death-chance");
+const yearsEl = document.querySelector("#years");
 const figureEl = document.querySelector("#figure");
 const playerEl = document.querySelector("#player-name");
 const leverReadout = document.querySelector("#lever-readout");
 const minimapEl = document.querySelector("#minimap");
-const healthInput = document.querySelector("#share-health");
-const workInput = document.querySelector("#share-work");
-const frugalInput = document.querySelector("#share-frugal");
+const triangleEl = document.querySelector("#triangle");
 const shareSumEl = document.querySelector("#share-sum");
+const wedgeNote = document.querySelector("#wedge-note");
+const deathEl = document.querySelector("#death");
+const deathStage = document.querySelector("#death-stage");
+const deathCaption = document.querySelector("#death-caption");
 const gameNameInput = document.querySelector("#game-name");
 const saveBtn = document.querySelector("#save");
 const resumeBtn = document.querySelector("#resume");
@@ -44,53 +57,81 @@ let cols = 10;
 let needleTurns = 0;
 let shownSpin = 0;
 let locked = false;
-let leversLocked = false;
+let pointLocked = false;
+
+const H = { x: 130, y: 22 };
+const W = { x: 230, y: 195.205 };
+const F = { x: 30, y: 195.205 };
+const CORNERS = {
+  health: { h: 1, w: 0, f: 0 },
+  work: { h: 0, w: 1, f: 0 },
+  frugal: { h: 0, w: 0, f: 1 },
+  center: { h: 1 / 3, w: 1 / 3, f: 1 / 3 },
+};
 
 const params = new URLSearchParams(location.search);
 seedInput.value = params.get("seed") || String(Math.floor(Math.random() * 1_000_000_000));
-if (params.get("health") != null) {
-  healthInput.value = params.get("health");
-  workInput.value = params.get("work") ?? "0";
-  frugalInput.value = params.get("frugal") ?? "0";
-}
 if (params.get("name")) gameNameInput.value = params.get("name");
 if (params.get("anim") === "0") animEl.checked = false;
 if (params.get("speed") === "1") speedEl.checked = true;
+
+function pointFromQuery() {
+  const corner = params.get("corner");
+  if (CORNERS[corner]) return { ...CORNERS[corner] };
+  if (params.get("h") != null) {
+    return {
+      h: Number(params.get("h")),
+      w: Number(params.get("w")),
+      f: Number(params.get("f")),
+    };
+  }
+  return { ...CORNERS.center };
+}
 
 function money(n) {
   const sign = n < 0 ? "−" : "";
   return `${sign}$${Math.abs(n).toLocaleString("en-US")}`;
 }
 
-function scaled(amount, bps) {
-  if (!amount) return 0;
-  return Math.round((amount * bps) / 10000);
-}
-
 function choiceLine(space) {
   const prompt = space.choice.prompt;
-  const mult = multipliers(spec, state);
-  if (mult.income === 10000 && mult.expense === 10000) return prompt;
+  const income = triangleRates(spec, state.point).income;
+  if (Math.abs(income - 1) < 1e-9) return prompt;
   const yes = space.choice.yes || {};
   const bits = [];
-  if (yes.cash) bits.push(money(scaled(yes.cash, yes.cash < 0 ? mult.expense : mult.income)));
-  if (yes.salaryDelta) bits.push(`pay ${money(scaled(yes.salaryDelta, mult.income))}`);
-  if (yes.salarySet != null) bits.push(`pay ${money(scaled(yes.salarySet, mult.income))}`);
-  if (space.choice.fate?.successCash) {
-    const bonus = space.choice.fate.successCash;
-    bits.push(`if it hits, ${money(scaled(bonus, bonus < 0 ? mult.expense : mult.income))} back`);
+  if (yes.salaryDelta) bits.push(`pay ${money(Math.round(yes.salaryDelta * income))}`);
+  if (yes.salarySet != null) bits.push(`pay ${money(Math.round(yes.salarySet * income))}`);
+  return bits.length ? `${prompt} At this point: ${bits.join(", ")}.` : prompt;
+}
+
+function wedgePath(q) {
+  if (q <= 0) return "";
+  const a0 = -Math.PI / 2;
+  const a1 = a0 + q * Math.PI * 2;
+  const r = 96;
+  const x0 = 100 + Math.cos(a0) * r;
+  const y0 = 100 + Math.sin(a0) * r;
+  const x1 = 100 + Math.cos(a1) * r;
+  const y1 = 100 + Math.sin(a1) * r;
+  if (q < 0.004) {
+    return `<line class="wedge" x1="100" y1="100" x2="${x1}" y2="${y1}" stroke="currentColor" stroke-width="2.4"/>`;
   }
-  return bits.length ? `${prompt} With these levers: ${bits.join(", ")}.` : prompt;
+  const large = q > 0.5 ? 1 : 0;
+  return `<path class="wedge" d="M100 100 L${x0} ${y0} A${r} ${r} 0 ${large} 1 ${x1} ${y1} Z" fill="currentColor" stroke="none"/>`;
 }
 
 function token() {
   return `<svg class="token" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10 18h12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
 }
 
-function drawWheel() {
+function drawWheel(q = 0) {
+  const prior = wheel.querySelector(".needle")?.style.transform || "";
   const nums = [];
+  const wedge = Math.min(Math.max(q, 0), 1);
+  const rest = (1 - wedge) * Math.PI * 2;
+  const start = -Math.PI / 2 + wedge * Math.PI * 2;
   for (let n = 1; n <= 10; n += 1) {
-    const angle = ((n - 1) / 10) * Math.PI * 2 - Math.PI / 2;
+    const angle = start + ((n - 0.5) / 10) * rest;
     const x = 100 + Math.cos(angle) * 74;
     const y = 100 + Math.sin(angle) * 74;
     nums.push(`<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-size="11" font-family="Palatino, Georgia, serif">${n}</text>`);
@@ -98,11 +139,15 @@ function drawWheel() {
   wheel.innerHTML = `
     <circle cx="100" cy="100" r="96" fill="none" stroke="currentColor" stroke-width="1"/>
     <circle cx="100" cy="100" r="62" fill="none" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+    ${wedgePath(wedge)}
     ${nums.join("")}
     <g class="needle">
       <line x1="100" y1="100" x2="100" y2="28" stroke="currentColor" stroke-width="1.4"/>
       <circle cx="100" cy="100" r="3" fill="currentColor"/>
     </g>`;
+  const needle = wheel.querySelector(".needle");
+  if (needle && prior) needle.style.transform = prior;
+  wheel.dataset.q = String(wedge);
 }
 
 function motionOn() {
@@ -110,10 +155,12 @@ function motionOn() {
   return !matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function pointNeedle(roll) {
+function pointNeedle(roll, death = false) {
   const needle = wheel.querySelector(".needle");
-  if (!needle || !roll) return;
-  const base = (roll - 1) * 36;
+  if (!needle) return;
+  const q = Number(wheel.dataset.q) || 0;
+  if (!roll && !death) return;
+  const base = death ? (q * 360) / 2 : (q * 360) + ((roll - 0.5) / 10) * (1 - q) * 360;
   if (!motionOn()) {
     needle.style.transform = `rotate(${base}deg)`;
     return;
@@ -135,29 +182,15 @@ function seedNumber() {
   return n >>> 0;
 }
 
-function shareValues() {
-  return {
-    health: Number(healthInput.value),
-    work: Number(workInput.value),
-    frugality: Number(frugalInput.value),
-  };
-}
-
-function sharesOk() {
-  const shares = shareValues();
-  return [shares.health, shares.work, shares.frugality].every((n) => Number.isInteger(n) && n >= 0 && n <= 100)
-    && shares.health + shares.work + shares.frugality === 100;
-}
-
 function gameName() {
   return gameNameInput.value.trim();
 }
 
 function startPath(pathName) {
-  if (!sharesOk() || !gameName()) return;
+  if (!gameName()) return;
   const seed = seedNumber();
-  state = choosePath(spec, createGame(spec, seed, shareValues()), pathName);
-  leversLocked = true;
+  state = choosePath(spec, createGame(spec, seed, state.point), pathName);
+  pointLocked = true;
   inspect = null;
 }
 
@@ -185,6 +218,7 @@ function logLine(entry) {
     const name = entry.flavor ? entry.flavor.caption : entry.title;
     return `${entry.n}. ${name}. Cash ${money(entry.cash)}. Pay ${money(entry.salary)}.`;
   }
+  if (entry.t === "death") return `${entry.n}. The wedge at ${entry.age}. The life ends on this square.`;
   if (entry.t === "end") return `${entry.n}. ${entry.note} Cash ${money(entry.cash)}.`;
   return `${entry.n}. ${entry.t}`;
 }
@@ -226,7 +260,7 @@ function renderBoard() {
       begin.type = "button";
       begin.className = "path-begin";
       begin.textContent = name === "study" ? "Begin study" : "Begin work";
-      begin.disabled = !sharesOk() || !gameName();
+      begin.disabled = !gameName();
       begin.addEventListener("click", () => {
         startPath(name);
         render();
@@ -309,10 +343,10 @@ function renderStory() {
     showFlavor(null);
     kickerEl.textContent = "Age 18 · choose";
     titleEl.textContent = "Study, or work.";
-    const mult = multipliers(spec, state);
-    const debt = Math.abs(scaled(spec.paths.study.spaces[0].cash, mult.expense));
-    const studyPay = scaled(spec.meta.studySalary, mult.income);
-    const workPay = scaled(spec.meta.workSalary, mult.income);
+    const income = triangleRates(spec, state.point).income;
+    const debt = Math.abs(spec.paths.study.spaces[0].cash);
+    const studyPay = Math.round(spec.meta.studySalary * income);
+    const workPay = Math.round(spec.meta.workSalary * income);
     detailEl.textContent = `Study costs ${money(debt)} now and pays ${money(studyPay)} a year after 21. Work pays ${money(workPay)} from the first job. Same number of years either way.`;
     return;
   }
@@ -358,50 +392,60 @@ function renderStory() {
   }
 }
 
+function deltaMark(kind, delta) {
+  const eps = kind === "death" ? 1e-12 : 0.5;
+  if (!Number.isFinite(delta) || Math.abs(delta) < eps) return "";
+  const plus = delta > 0;
+  const good = kind === "income" ? plus : !plus;
+  const sign = plus ? "+" : "−";
+  const word = `${good ? "good" : "bad"}, ${plus ? "above" : "below"} the center`;
+  return `<i class="delta ${good ? "good" : "bad"}" aria-label="${word}">${sign}</i>`;
+}
+
+function chanceText(q) {
+  return `${(q * 100).toFixed(3)}%`;
+}
+
 function renderStats() {
   const space = currentSpace(spec, state);
   const portrait = portraitStats(spec, state);
+  const age = space ? space.age : spec.meta.ageStart;
   ageEl.textContent = space ? String(space.age) : "18";
   cashEl.textContent = money(state.cash);
   cashEl.classList.toggle("debt", state.cash < 0);
   cashEl.setAttribute("aria-label", state.cash < 0 ? `debt ${money(state.cash)}` : money(state.cash));
   savingsEl.textContent = money(portrait.savings);
-  payEl.textContent = money(portrait.income);
-  expensesEl.textContent = money(portrait.expenses);
-  happyEl.textContent = String(portrait.happiness);
+  payEl.innerHTML = `${money(portrait.income)}${deltaMark("income", portrait.incomeDelta)}`;
+  expensesEl.innerHTML = `${money(portrait.monthly)}${deltaMark("expense", portrait.expenseDelta)}`;
+  deathChanceEl.innerHTML = `${chanceText(portrait.death)}${deltaMark("death", portrait.deathDelta)}`;
+  yearsEl.textContent = portrait.years.toFixed(1);
   playerEl.textContent = gameName() || "One player";
-  const shares = state.levers;
-  if (!shares) {
-    leverReadout.textContent = "Set the three levers. Stats are public.";
-  } else {
-    const income = (portrait.incomeBps / 10000).toFixed(2);
-    const expense = (portrait.expenseBps / 10000).toFixed(2);
-    leverReadout.textContent = `Health ${shares.health} · Work ${shares.work} · Frugality ${shares.frugality}. Income ×${income}. Expenses ×${expense}. Stats are public.`;
-  }
-  drawFigure(shares, portrait.happiness);
+  const rates = portrait.rates;
+  leverReadout.textContent = `Health ${rates.h.toFixed(2)} · Work ${rates.w.toFixed(2)} · Frugality ${rates.f.toFixed(2)}. Income ×${rates.income.toFixed(2)}. Spend ${(rates.spend * 100).toFixed(0)}%. Mortality ×${rates.mortality.toFixed(2)}.`;
+  const q = deathProbability(spec, age, rates.mortality);
+  drawWheel(q);
+  if (wedgeNote) wedgeNote.textContent = `Death wedge ${chanceText(q)} of the circle.`;
+  drawFigure(rates);
+  renderDeath();
 }
 
-function drawFigure(shares, happiness) {
-  const health = (shares?.health ?? 0) / 100;
-  const work = (shares?.work ?? 0) / 100;
-  const frugality = shares ? shares.frugality : 100;
-  const lean = (1 - health) * 10;
-  const sharp = work >= 0.5;
+function drawFigure(rates) {
+  const lean = ((1 - rates.axis.h) / 2) * 10;
+  const sharp = rates.axis.w > 0;
   const cap = sharp ? "miter" : "round";
   const join = sharp ? "miter" : "round";
   const width = sharp ? 1.25 : 1.7;
-  const bow = 1.5 + ((happiness - 90) / 10) * 4;
   const hipX = (40 + lean).toFixed(1);
-  const shoulder = sharp ? "M22 42 L40 34 L58 42" : "M24 44 Q40 34 56 44";
-  const bag = frugality <= 66
+  const shoulder = sharp ? "M22 42 L40 34 L58 42" : "M24 44 Q40 36 56 44";
+  const bag = rates.axis.f < 0
     ? `<path d="M58 50 h10 v14 h-10" fill="none" stroke="currentColor" stroke-width="1.2"/>`
     : "";
-  const collar = frugality <= 33
+  const collar = rates.axis.f <= -0.5
     ? `<path d="M34 36 h12 l-2 6 h-8 z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="miter"/>`
     : "";
   figureEl.innerHTML = `
     <circle cx="40" cy="22" r="12" fill="none" stroke="currentColor" stroke-width="${width}"/>
-    <path d="M33 27 Q40 ${(27 + bow).toFixed(1)} 47 27" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    <path d="M34 26 h12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
     <path d="${shoulder}" fill="none" stroke="currentColor" stroke-width="${width}" stroke-linejoin="${join}" stroke-linecap="${cap}"/>
     <path d="M40 34 L${hipX} 72" fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="${cap}"/>
     <path d="M30 46 L${(18 + lean * 0.2).toFixed(1)} 66" fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="${cap}"/>
@@ -409,6 +453,64 @@ function drawFigure(shares, happiness) {
     <path d="M${hipX} 72 L${(28 + lean).toFixed(1)} 108" fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="${cap}"/>
     <path d="M${hipX} 72 L${(54 + lean * 0.3).toFixed(1)} 108" fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="${cap}"/>
     ${bag}${collar}`;
+}
+
+function pointXY(point) {
+  return {
+    x: point.h * H.x + point.w * W.x + point.f * F.x,
+    y: point.h * H.y + point.w * W.y + point.f * F.y,
+  };
+}
+
+function barycentric(px, py) {
+  const denom = (W.y - F.y) * (H.x - F.x) + (F.x - W.x) * (H.y - F.y);
+  let h = ((W.y - F.y) * (px - F.x) + (F.x - W.x) * (py - F.y)) / denom;
+  let w = ((F.y - H.y) * (px - F.x) + (H.x - F.x) * (py - F.y)) / denom;
+  let f = 1 - h - w;
+  h = Math.max(0, h);
+  w = Math.max(0, w);
+  f = Math.max(0, f);
+  const sum = h + w + f || 1;
+  return { h: h / sum, w: w / sum, f: f / sum };
+}
+
+function drawTriangle() {
+  const lockedNow = pointLocked || Boolean(state?.path);
+  triangleEl.classList.toggle("locked", lockedNow);
+  const spot = pointXY(state.point);
+  triangleEl.innerHTML = `
+    <polygon class="face" points="${H.x},${H.y} ${W.x},${W.y} ${F.x},${F.y}"/>
+    <text class="vertex-label" x="${H.x}" y="${H.y - 8}" text-anchor="middle">Health</text>
+    <text class="vertex-label" x="${F.x}" y="${F.y + 16}" text-anchor="start">Frugality</text>
+    <text class="vertex-label" x="${W.x}" y="${W.y + 16}" text-anchor="end">Work</text>
+    <circle class="handle" cx="${spot.x}" cy="${spot.y}" r="7"/>`;
+}
+
+function setPoint(point) {
+  if (pointLocked || state?.path) return;
+  state = createGame(spec, seedNumber(), point);
+  render();
+}
+
+function svgPoint(event) {
+  const rect = triangleEl.getBoundingClientRect();
+  const vb = triangleEl.viewBox.baseVal;
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * vb.width,
+    y: ((event.clientY - rect.top) / rect.height) * vb.height,
+  };
+}
+
+function renderDeath() {
+  if (!state.death) {
+    deathEl.hidden = true;
+    deathStage.innerHTML = "";
+    return;
+  }
+  deathEl.hidden = false;
+  deathStage.classList.toggle("still", !motionOn());
+  deathStage.innerHTML = deathMarkup(state.death.animation);
+  deathCaption.textContent = `Age ${state.death.age}. The wedge.`;
 }
 
 function miniMark(space, mode) {
@@ -453,19 +555,14 @@ function renderMinimap() {
 }
 
 function renderShares() {
-  const locked = leversLocked || Boolean(state?.path);
-  document.querySelector("#setup").classList.toggle("locked", locked);
-  const shares = shareValues();
-  const sum = [shares.health, shares.work, shares.frugality].reduce((total, n) => total + (Number.isFinite(n) ? n : 0), 0);
-  shareSumEl.textContent = sharesOk()
-    ? `${shares.health} + ${shares.work} + ${shares.frugality} = 100.`
-    : `The three shares add to ${sum}. They need to add to 100.`;
-  healthInput.disabled = locked;
-  workInput.disabled = locked;
-  frugalInput.disabled = locked;
-  document.querySelectorAll("[data-preset]").forEach((btn) => {
-    btn.disabled = locked;
+  const lockedNow = pointLocked || Boolean(state?.path);
+  document.querySelector("#setup").classList.toggle("locked", lockedNow);
+  const rates = triangleRates(spec, state.point);
+  shareSumEl.textContent = `Weights ${rates.h.toFixed(2)} + ${rates.w.toFixed(2)} + ${rates.f.toFixed(2)} = 1.`;
+  document.querySelectorAll("[data-corner]").forEach((btn) => {
+    btn.disabled = lockedNow;
   });
+  drawTriangle();
 }
 
 function note(text) {
@@ -514,12 +611,7 @@ function resumeGame() {
   state = data.state;
   animEl.checked = Boolean(data.animation);
   speedEl.checked = Boolean(data.speedRun);
-  if (state.levers) {
-    healthInput.value = state.levers.health;
-    workInput.value = state.levers.work;
-    frugalInput.value = state.levers.frugality;
-  }
-  leversLocked = Boolean(state.path);
+  pointLocked = Boolean(state.path);
   seedInput.value = String(state.seed);
   inspect = null;
   resetNeedle();
@@ -529,11 +621,11 @@ function resumeGame() {
 
 function newGame() {
   if (!spec) return;
-  leversLocked = false;
+  pointLocked = false;
   inspect = null;
   resetNeedle();
-  state = createGame(spec, seedNumber(), sharesOk() ? shareValues() : null);
-  note("Levers are open.");
+  state = createGame(spec, seedNumber(), state?.point);
+  note("The point is open.");
   render();
 }
 
@@ -559,9 +651,9 @@ function renderControls() {
   if (state.phase === "choose") {
     actBtn.textContent = "Spin";
     actBtn.disabled = true;
-    if (!gameName()) readout.textContent = "Name the game, set the levers to 100, then choose a path.";
-    else if (!sharesOk()) readout.textContent = "The levers must add to 100.";
-    else readout.textContent = "Choose a path. Then spin 1 through 10.";
+    readout.textContent = gameName()
+      ? "Choose a path. The wedge is already on the wheel."
+      : "Name the game, drag the point, then choose a path.";
   } else if (state.phase === "choice") {
     actBtn.textContent = "Spin";
     actBtn.disabled = true;
@@ -569,13 +661,18 @@ function renderControls() {
   } else if (state.phase === "ended") {
     actBtn.textContent = "New life";
     actBtn.disabled = locked;
-    readout.textContent = `Working life ends at 68 with ${money(state.cash)}.`;
+    readout.textContent = state.death
+      ? `The wedge at ${state.death.age}. The life ends on this square.`
+      : `Working life ends at 68 with ${money(state.cash)}.`;
   } else {
     actBtn.textContent = "Spin";
     actBtn.disabled = locked;
     readout.textContent = spun ? `Last spin ${spun.roll}.` : "Spin when you are ready.";
   }
-  if (spun && spun.n !== shownSpin) {
+  if (state.death && shownSpin !== -1) {
+    shownSpin = -1;
+    pointNeedle(0, true);
+  } else if (spun && spun.n !== shownSpin) {
     shownSpin = spun.n;
     pointNeedle(spun.roll);
   }
@@ -594,9 +691,9 @@ function render() {
 function takeTurn() {
   if (locked) return;
   if (state.phase === "ended") {
-    const levers = state.levers;
-    state = createGame(spec, seedNumber(), levers);
-    leversLocked = Boolean(levers);
+    const point = state.point;
+    state = createGame(spec, seedNumber(), point);
+    pointLocked = true;
     inspect = null;
     resetNeedle();
     render();
@@ -642,36 +739,34 @@ window.addEventListener("keydown", (event) => {
   takeTurn();
 });
 
-const presetShares = {
-  health: [100, 0, 0],
-  work: [0, 100, 0],
-  frugal: [0, 0, 100],
-  even: [34, 33, 33],
-};
-
-document.querySelectorAll("[data-preset]").forEach((btn) => {
+document.querySelectorAll("[data-corner]").forEach((btn) => {
   btn.addEventListener("click", () => {
-    if (!spec || leversLocked || state?.path) return;
-    const [health, work, frugality] = presetShares[btn.dataset.preset];
-    healthInput.value = String(health);
-    workInput.value = String(work);
-    frugalInput.value = String(frugality);
-    if (sharesOk()) state = createGame(spec, seedNumber(), shareValues());
-    render();
+    if (!spec) return;
+    setPoint(CORNERS[btn.dataset.corner]);
   });
 });
 
-for (const input of [healthInput, workInput, frugalInput]) {
-  input.addEventListener("input", () => {
-    if (!spec || leversLocked || state?.path) return;
-    if (sharesOk()) state = createGame(spec, seedNumber(), shareValues());
+triangleEl.addEventListener("pointerdown", (event) => {
+  if (!spec || pointLocked || state?.path) return;
+  triangleEl.setPointerCapture(event.pointerId);
+  const place = (ev) => {
+    const spot = svgPoint(ev);
+    state = { ...state, point: barycentric(spot.x, spot.y) };
     render();
-  });
-}
+  };
+  place(event);
+  const move = (ev) => place(ev);
+  const up = () => {
+    triangleEl.removeEventListener("pointermove", move);
+    triangleEl.removeEventListener("pointerup", up);
+  };
+  triangleEl.addEventListener("pointermove", move);
+  triangleEl.addEventListener("pointerup", up);
+});
 
 gameNameInput.addEventListener("input", () => {
   if (!spec || !state) return;
-  if (leversLocked) {
+  if (pointLocked || state?.path) {
     playerEl.textContent = gameName() || "One player";
     return;
   }
@@ -690,7 +785,7 @@ window.addEventListener("resize", () => {
   resizeTimer = setTimeout(renderBoard, 150);
 });
 
-drawWheel();
+drawWheel(0);
 
 const specRes = await fetch("./spec/accumulation.json");
 if (!specRes.ok) {
@@ -698,9 +793,9 @@ if (!specRes.ok) {
   detailEl.textContent = "Start a local server from this folder, then open the page. file:// cannot read the spec.";
 } else {
   spec = await specRes.json();
-  fineEl.textContent = `${spec.meta.rules.join(" ")} Amounts live in the board spec. One player. Stats are public.`;
-  state = createGame(spec, seedNumber(), sharesOk() ? shareValues() : null);
+  fineEl.textContent = `${spec.meta.rules.join(" ")} Amounts, the triangle, and both mortality series live in the board spec. One player. Stats are public.`;
+  state = createGame(spec, seedNumber(), pointFromQuery());
   const preset = params.get("path");
-  if ((preset === "study" || preset === "work") && sharesOk() && gameName()) startPath(preset);
+  if ((preset === "study" || preset === "work") && gameName()) startPath(preset);
   render();
 }
