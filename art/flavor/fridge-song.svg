@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" data-flavor-still="fridge-song">
+  <title>A fridge humming</title>
+  <rect width="240" height="180" fill="#111111"/>
+  <g data-layer="still" fill="none" stroke="#f3f0e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="70" y="36" width="80" height="112" rx="4"/>
+    <path d="M70 92 H150"/>
+    <circle cx="142" cy="64" r="3"/>
+    <circle cx="142" cy="116" r="3"/>
+    <path d="M164 60 C176 52 176 72 164 66"/>
+    <path d="M176 50 C194 40 196 74 176 64"/>
+    <path d="M164 112 C176 104 176 124 164 118"/>
+  </g>
+</svg>

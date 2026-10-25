@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" data-flavor-still="late-balloon">
+  <title>A balloon left on a mailbox</title>
+  <rect width="240" height="180" fill="#111111"/>
+  <g data-layer="still" fill="none" stroke="#f3f0e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="96" y="96" width="48" height="32" rx="2"/>
+    <path d="M120 128 V156"/>
+    <path d="M108 96 H132"/>
+    <path d="M144 104 H168"/>
+    <path d="M120 96 C120 70 148 62 150 40"/>
+    <ellipse cx="150" cy="32" rx="16" ry="20"/>
+    <path d="M142 28 H158" stroke-width="1"/>
+  </g>
+</svg>

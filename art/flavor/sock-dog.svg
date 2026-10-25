@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" data-flavor-still="sock-dog">
+  <title>A dog in one sock</title>
+  <rect width="240" height="180" fill="#111111"/>
+  <g data-layer="still" fill="none" stroke="#f3f0e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="118" cy="78" r="28"/>
+    <path d="M96 64 L84 40 L108 58"/>
+    <path d="M142 62 L160 42 L150 70"/>
+    <circle cx="108" cy="76" r="2" fill="#f3f0e8" stroke="none"/>
+    <circle cx="130" cy="76" r="2" fill="#f3f0e8" stroke="none"/>
+    <path d="M112 88 H124"/>
+    <ellipse cx="118" cy="124" rx="24" ry="16"/>
+    <path d="M100 132 C98 150 112 156 118 148 C124 158 140 150 136 132"/>
+    <path d="M148 110 C170 108 176 128 160 132"/>
+  </g>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" data-flavor-still="roof-speck">
+  <title>A speck over the roof</title>
+  <rect width="240" height="180" fill="#111111"/>
+  <g data-layer="still" fill="none" stroke="#f3f0e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M40 120 L120 62 L200 120"/>
+    <path d="M70 120 V150 H170 V120"/>
+    <rect x="108" y="128" width="18" height="22"/>
+    <circle cx="168" cy="36" r="4" fill="#f3f0e8" stroke="none"/>
+    <path d="M150 48 L166 38" stroke-width="1.5"/>
+  </g>
+</svg>

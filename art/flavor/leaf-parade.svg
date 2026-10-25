@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" data-flavor-still="leaf-parade">
+  <title>A dog leading leaves</title>
+  <rect width="240" height="180" fill="#111111"/>
+  <g data-layer="still" fill="none" stroke="#f3f0e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="58" cy="100" r="18"/>
+    <path d="M46 90 L38 74 L56 88"/>
+    <circle cx="52" cy="98" r="1.5" fill="#f3f0e8" stroke="none"/>
+    <path d="M64 108 C80 120 70 132 58 124"/>
+    <ellipse cx="110" cy="108" rx="10" ry="6" transform="rotate(-20 110 108)"/>
+    <ellipse cx="142" cy="100" rx="10" ry="6" transform="rotate(16 142 100)"/>
+    <ellipse cx="174" cy="112" rx="10" ry="6" transform="rotate(-12 174 112)"/>
+    <ellipse cx="204" cy="96" rx="10" ry="6" transform="rotate(18 204 96)"/>
+  </g>
+</svg>

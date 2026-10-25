@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" data-flavor-still="wagging-shadow">
+  <title>A shadow with a wagging tail</title>
+  <rect width="240" height="180" fill="#111111"/>
+  <g data-layer="still" fill="none" stroke="#f3f0e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="110" cy="120" rx="46" ry="12"/>
+    <path d="M110 112 C110 60 150 48 156 78 C148 92 130 96 118 108"/>
+    <path d="M150 84 C176 70 188 96 168 104"/>
+    <path d="M168 104 C186 98 190 112 174 116"/>
+    <circle cx="124" cy="78" r="3" fill="#f3f0e8" stroke="none"/>
+  </g>
+</svg>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" data-flavor-still="aisle-song">
+  <title>A song in the aisle</title>
+  <rect width="240" height="180" fill="#111111"/>
+  <g data-layer="still" fill="none" stroke="#f3f0e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M48 40 V140 M48 40 H150 M48 80 H150 M48 120 H150"/>
+    <rect x="70" y="48" width="16" height="24"/>
+    <rect x="98" y="52" width="14" height="20"/>
+    <rect x="122" y="46" width="18" height="26"/>
+    <path d="M170 100 V70"/>
+    <ellipse cx="178" cy="70" rx="10" ry="7"/>
+    <path d="M186 78 C198 86 196 102 180 100"/>
+  </g>
+</svg>

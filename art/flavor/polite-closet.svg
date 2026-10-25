@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" data-flavor-still="polite-closet">
+  <title>Polite eyes in a closet</title>
+  <rect width="240" height="180" fill="#111111"/>
+  <g data-layer="still" fill="none" stroke="#f3f0e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="78" y="28" width="84" height="128"/>
+    <path d="M120 28 V156"/>
+    <circle cx="132" cy="78" r="6"/>
+    <circle cx="156" cy="78" r="6"/>
+    <circle cx="132" cy="78" r="1.5" fill="#f3f0e8" stroke="none"/>
+    <circle cx="156" cy="78" r="1.5" fill="#f3f0e8" stroke="none"/>
+    <path d="M136 96 H152"/>
+    <path d="M108 70 H96"/>
+  </g>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" data-flavor-still="fry-bow">
+  <title>A pigeon bows with a fry</title>
+  <rect width="240" height="180" fill="#111111"/>
+  <g data-layer="still" fill="none" stroke="#f3f0e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="112" cy="100" rx="36" ry="22"/>
+    <circle cx="146" cy="86" r="14"/>
+    <path d="M158 84 L176 80 L160 94"/>
+    <path d="M168 70 L172 52 L178 72"/>
+    <path d="M90 118 C70 140 150 146 132 120"/>
+    <circle cx="142" cy="84" r="1.5" fill="#f3f0e8" stroke="none"/>
+  </g>
+</svg>
