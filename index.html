@@ -32,20 +32,33 @@
               <dd id="pay">—</dd>
             </div>
             <div>
-              <dt>Expenses</dt>
+              <dt>Monthly</dt>
               <dd id="expenses">—</dd>
             </div>
             <div>
-              <dt>Happiness</dt>
-              <dd id="happy">—</dd>
+              <dt>Death</dt>
+              <dd id="death-chance">—</dd>
+            </div>
+            <div>
+              <dt>Years left</dt>
+              <dd id="years">—</dd>
             </div>
           </dl>
         </div>
         <p class="lever-readout" id="lever-readout">Stats are public.</p>
+        <div class="triangle-wrap">
+          <svg id="triangle" viewBox="0 0 260 230" role="application" aria-label="Health, work, and frugality"></svg>
+          <div class="corners">
+            <button type="button" data-corner="health">Health</button>
+            <button type="button" data-corner="work">Work</button>
+            <button type="button" data-corner="frugal">Frugality</button>
+            <button type="button" data-corner="center">Center</button>
+          </div>
+        </div>
       </aside>
 
       <div class="brand">
-        <p class="eyebrow">Stage 2 · v0.3.0</p>
+        <p class="eyebrow">Stage 2 · v0.4.0</p>
         <h1>Life</h1>
         <p class="dek">A working life, ages 18–68.</p>
         <div class="switches" role="group" aria-label="Play switches">
@@ -62,18 +75,7 @@
 
     <section class="story" aria-live="polite">
       <div id="setup">
-        <p class="setup-lead">Split 100 across health, work, and frugality. The split locks when the path starts. One player.</p>
-        <div class="presets">
-          <button type="button" data-preset="health">All health</button>
-          <button type="button" data-preset="work">All work</button>
-          <button type="button" data-preset="frugal">All frugal</button>
-          <button type="button" data-preset="even">Even</button>
-        </div>
-        <div class="shares">
-          <label>Health <input id="share-health" type="number" min="0" max="100" step="1" value="34" /></label>
-          <label>Work <input id="share-work" type="number" min="0" max="100" step="1" value="33" /></label>
-          <label>Frugality <input id="share-frugal" type="number" min="0" max="100" step="1" value="33" /></label>
-        </div>
+        <p class="setup-lead">Drag the point. Health, work, and frugality. It locks when the path starts.</p>
         <p id="share-sum"></p>
         <div class="name-row">
           <label for="game-name">Game name</label>
@@ -116,8 +118,13 @@
         <input id="seed" inputmode="numeric" autocomplete="off" />
         <button id="copy" type="button">Copy log</button>
         <p id="roll-readout"></p>
+        <p id="wedge-note"></p>
       </div>
     </div>
+    </div>
+    <div id="death" hidden>
+      <div id="death-stage"></div>
+      <p id="death-caption"></p>
     </div>
     <script type="module" src="./src/main.js"></script>
   </body>
