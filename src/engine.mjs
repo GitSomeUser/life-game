@@ -1,8 +1,9 @@
 /**
  * Accumulation simulation. Reads spec/accumulation.json.
  * Deterministic: spins, risky choices, and flavor cards use separate streams.
- * Levers, when set, scale income and expenses. Lifespan, interest, mortality,
- * and retirement decisions are not in this version.
+ * The triangle sets income, the spending rate, and mortality.
+ * Interest and decumulation are not in this version.
+ * Death is on the spin stream, so answers do not move the wedge.
  */
 
 const KINDS = new Set(["event", "payday", "stop", "choice"]);
@@ -61,61 +62,151 @@ export function validate(spec) {
   for (const mood of ["cute-funny", "funny-sad", "pg-scary", "happy", "exciting"]) {
     if ((moods[mood] || 0) < 3) errors.push(`${mood} needs several cards`);
   }
-  const levers = spec.meta.levers;
-  if (levers) {
-    for (const name of ["health", "work", "frugality"]) {
-      const row = levers[name];
-      if (!row) errors.push(`missing lever ${name}`);
-      else {
-        for (const key of ["incomeBps", "expenseBps", "happinessBps"]) {
-          if (!Number.isInteger(row[key]) || row[key] < 0) errors.push(`${name} ${key} must be a basis point count`);
-        }
-      }
+  const triangle = spec.meta.triangle;
+  if (!triangle) errors.push("missing triangle");
+  else {
+    for (const key of ["incomePerAxis", "spendCenter", "spendPerAxis", "healthCostShare", "mortalityAbove", "mortalityBelow", "healthCostAbove", "healthCostBelow"]) {
+      if (!Number.isFinite(triangle[key]) || triangle[key] < 0) errors.push(`triangle ${key} must be a number`);
+    }
+  }
+  const mortality = spec.mortality;
+  if (!mortality?.longer?.q || !mortality?.shorter?.q) errors.push("missing mortality series");
+  else {
+    const span = ageEnd - ageStart + 1;
+    for (const name of ["longer", "shorter"]) {
+      const series = mortality[name].q;
+      if (series.length !== span) errors.push(`${name} q has ${series.length} rates, expected ${span}`);
+      series.forEach((q, i) => {
+        if (!Number.isFinite(q) || q <= 0 || q > 1) errors.push(`${name} q at ${ageStart + i} must be a death probability above 0`);
+      });
+    }
+    if (mortality.longer.q.length === mortality.shorter.q.length) {
+      mortality.longer.q.forEach((q, i) => {
+        if (!(mortality.shorter.q[i] > q)) errors.push(`shorter q at ${ageStart + i} must be above the longer table`);
+      });
+    }
+    if (mortality.perSquare != null && typeof mortality.perSquare !== "object") {
+      errors.push("perSquare slot must be null until a later pass");
     }
   }
   if (errors.length) throw new Error(errors.join("\n"));
   return spec;
 }
 
-export function parseLevers(raw) {
-  if (raw == null) return null;
-  const health = raw.health;
-  const work = raw.work;
-  const frugality = raw.frugality;
-  for (const n of [health, work, frugality]) {
-    if (!Number.isInteger(n) || n < 0 || n > 100) {
-      throw new Error("Lever shares are whole numbers from 0 to 100");
-    }
-  }
-  if (health + work + frugality !== 100) throw new Error("Lever shares must add to 100");
-  return { health, work, frugality };
+export function centerPoint() {
+  return { h: 1 / 3, w: 1 / 3, f: 1 / 3 };
 }
 
-export function multipliers(spec, state) {
-  const levers = state?.levers;
-  const table = spec.meta.levers;
-  if (!levers || !table) return { income: 10000, expense: 10000, happiness: 10000 };
-  const blend = (key) => Math.round(
-    (levers.health * table.health[key] + levers.work * table.work[key] + levers.frugality * table.frugality[key]) / 100,
-  );
-  return { income: blend("incomeBps"), expense: blend("expenseBps"), happiness: blend("happinessBps") };
+export function parsePoint(raw) {
+  if (raw == null) return centerPoint();
+  const h = Number(raw.h ?? raw.health);
+  const w = Number(raw.w ?? raw.work);
+  const f = Number(raw.f ?? raw.frugality);
+  for (const n of [h, w, f]) {
+    if (!Number.isFinite(n) || n < -1e-9 || n > 1 + 1e-9) throw new Error("Triangle weights are from 0 to 1");
+  }
+  const sum = h + w + f;
+  if (Math.abs(sum - 1) > 1e-6) throw new Error("Triangle weights must add to 1");
+  return { h: h / sum, w: w / sum, f: f / sum };
+}
+
+export function axis(weight) {
+  if (weight >= 1 / 3) return (weight - 1 / 3) / (2 / 3);
+  return (weight - 1 / 3) / (1 / 3);
+}
+
+export function triangleRates(spec, point) {
+  const weights = parsePoint(point);
+  const table = spec.meta.triangle;
+  const h = axis(weights.h);
+  const w = axis(weights.w);
+  const f = axis(weights.f);
+  const income = 1 + table.incomePerAxis * w;
+  const spend = table.spendCenter - table.spendPerAxis * f;
+  const mortality = h >= 0
+    ? 1 - table.mortalityAbove * h
+    : 1 + table.mortalityBelow * -h;
+  const healthCost = h >= 0
+    ? 1 - table.healthCostAbove * h
+    : 1 + table.healthCostBelow * -h;
+  return { h: weights.h, w: weights.w, f: weights.f, axis: { h, w, f }, income, spend, mortality, healthCost };
+}
+
+export function budgetFactor(spec, rates) {
+  const share = spec.meta.triangle.healthCostShare;
+  return rates.spend * ((1 - share) + share * rates.healthCost);
+}
+
+export function annualExpenses(income, rates, spec) {
+  return Math.round(income * budgetFactor(spec, rates));
+}
+
+export function monthlyExpenses(income, rates, spec) {
+  return Math.round(annualExpenses(income, rates, spec) / 12);
+}
+
+export function livingGap(spec, income, rates) {
+  const center = budgetFactor(spec, triangleRates(spec, centerPoint()));
+  return Math.round(income * (center - budgetFactor(spec, rates)));
+}
+
+export function deathProbability(spec, age, mortalityMultiplier = 1) {
+  const q = spec.mortality.longer.q[age - spec.meta.ageStart];
+  if (!Number.isFinite(q)) throw new Error(`No death probability at ${age}`);
+  return Math.min(1, q * mortalityMultiplier);
+}
+
+export function lifeExpectancy(spec, age, mortalityMultiplier = 1) {
+  let surv = 1;
+  let years = 0;
+  for (let a = age; a < spec.meta.ageEnd; a += 1) {
+    surv *= 1 - deathProbability(spec, a, mortalityMultiplier);
+    years += surv;
+  }
+  return years;
+}
+
+export function deathBand(spec, age) {
+  const band = spec.mortality.bands.find((row) => age >= row.from && age <= row.to);
+  if (!band) throw new Error(`No death band for ${age}`);
+  return band;
+}
+
+export function outcomeFromUnit(unit, q) {
+  if (unit < q) return { death: true, roll: 0 };
+  const roll = 1 + Math.floor(((unit - q) / (1 - q)) * 10);
+  return { death: false, roll };
 }
 
 export function portraitStats(spec, state) {
-  const mult = multipliers(spec, state);
+  const rates = triangleRates(spec, state.point);
+  const age = currentSpace(spec, state)?.age ?? spec.meta.ageStart;
+  const income = state.salary;
+  const annual = annualExpenses(income, rates, spec);
+  const monthly = Math.round(annual / 12);
+  const base = rates.income ? income / rates.income : 0;
+  const centerIncome = Math.round(base);
+  const centerRates = triangleRates(spec, centerPoint());
+  const centerMonthly = Math.round(annualExpenses(centerIncome, centerRates, spec) / 12);
+  const death = deathProbability(spec, age, rates.mortality);
+  const deathCenter = deathProbability(spec, age, 1);
   return {
     savings: Math.max(state.cash, 0),
-    expenses: state.expenses || 0,
-    income: state.salary,
-    happiness: Math.round(mult.happiness / 100),
-    incomeBps: mult.income,
-    expenseBps: mult.expense,
+    income,
+    monthly,
+    annual,
+    death,
+    years: lifeExpectancy(spec, age, rates.mortality),
+    incomeDelta: income - centerIncome,
+    expenseDelta: monthly - centerMonthly,
+    deathDelta: death - deathCenter,
+    rates,
   };
 }
 
-function scale(amount, bps) {
+function scaleIncome(amount, income) {
   if (!amount) return 0;
-  return Math.round((amount * bps) / 10000);
+  return Math.round(amount * income);
 }
 
 function nextUnit(a) {
@@ -126,7 +217,7 @@ function nextUnit(a) {
   return { state: x >>> 0, unit: ((t ^ (t >>> 14)) >>> 0) / 4294967296 };
 }
 
-export function createGame(spec, seed, levers) {
+export function createGame(spec, seed, point) {
   validate(spec);
   const s = seed >>> 0;
   return {
@@ -139,31 +230,39 @@ export function createGame(spec, seed, levers) {
     cash: spec.meta.startingCash,
     salary: 0,
     expenses: 0,
-    levers: parseLevers(levers),
+    point: parsePoint(point),
     phase: "choose",
     pendingChoiceId: null,
+    death: null,
     log: [],
   };
 }
 
-function applyEffects(cash, salary, effect, mult) {
+function applyEffects(cash, salary, effect, rates) {
   if (!effect) return { cash, salary, cashDelta: 0, salaryDelta: 0 };
-  const income = mult?.income ?? 10000;
-  const expense = mult?.expense ?? 10000;
+  const income = rates?.income ?? 1;
   let cashDelta = 0;
   let salaryDelta = 0;
-  if (effect.salarySet != null) salary = scale(effect.salarySet, income);
+  if (effect.salarySet != null) salary = scaleIncome(effect.salarySet, income);
   if (effect.salaryDelta) {
-    const delta = scale(effect.salaryDelta, income);
+    const delta = scaleIncome(effect.salaryDelta, income);
     salary += delta;
     salaryDelta = delta;
   }
   if (effect.cash) {
-    const delta = scale(effect.cash, effect.cash < 0 ? expense : income);
-    cash += delta;
-    cashDelta = delta;
+    cash += effect.cash;
+    cashDelta = effect.cash;
   }
   return { cash, salary, cashDelta, salaryDelta };
+}
+
+function takeLiving(spec, cash, expenses, salary, rates) {
+  const gap = livingGap(spec, salary, rates);
+  return {
+    cash: cash + gap,
+    expenses: (expenses || 0) + (gap < 0 ? -gap : 0),
+    gap,
+  };
 }
 
 function charge(expenses, cashDelta) {
@@ -196,7 +295,7 @@ function settleLanding(spec, state, space) {
   }
   const applied = space.flavor
     ? { cash: state.cash, salary: state.salary, cashDelta: 0, salaryDelta: 0 }
-    : applyEffects(state.cash, state.salary, space, multipliers(spec, state));
+    : applyEffects(state.cash, state.salary, space, triangleRates(spec, state.point));
   return { applied, flavorState, flavor };
 }
 
@@ -237,11 +336,18 @@ export function choosePath(spec, state, pathName) {
     return { ...next, phase: "choice", pendingChoiceId: space.id };
   }
   const settled = settleLanding(spec, next, space);
+  const lived = takeLiving(
+    spec,
+    settled.applied.cash,
+    charge(next.expenses, settled.applied.cashDelta),
+    settled.applied.salary,
+    triangleRates(spec, next.point),
+  );
   next = {
     ...next,
-    cash: settled.applied.cash,
+    cash: lived.cash,
     salary: settled.applied.salary,
-    expenses: charge(next.expenses, settled.applied.cashDelta),
+    expenses: lived.expenses,
     flavorState: settled.flavorState,
     phase: space.terminal ? "ended" : "play",
   };
@@ -252,6 +358,7 @@ export function choosePath(spec, state, pathName) {
         t: "resolve",
         cashDelta: settled.applied.cashDelta,
         salaryDelta: settled.applied.salaryDelta,
+        livingGap: lived.gap,
         flavor: settled.flavor,
       }),
     ),
@@ -276,18 +383,49 @@ export function applyRoll(spec, state, roll) {
   const moved = i - state.index;
   const discarded = roll - moved;
   let cash = state.cash;
-  const salary = state.salary;
+  let salary = state.salary;
+  let expenses = state.expenses || 0;
+  let flavorState = state.flavorState;
+  let flavor = null;
+  let cashDelta = 0;
+  let salaryDelta = 0;
+  let living = 0;
+  const rates = triangleRates(spec, state.point);
   let paydayCash = 0;
   for (const _p of paydays) {
     cash += salary;
     paydayCash += salary;
   }
+  for (let n = 1; n < moved; n += 1) {
+    const year = takeLiving(spec, cash, expenses, salary, rates);
+    cash = year.cash;
+    expenses = year.expenses;
+    living += year.gap;
+  }
   const landed = spaces[i];
+  if (landed.kind !== "choice" && landed.kind !== "payday") {
+    const settled = settleLanding(spec, { ...state, cash, salary, flavorState }, landed);
+    cash = settled.applied.cash;
+    salary = settled.applied.salary;
+    cashDelta = settled.applied.cashDelta;
+    salaryDelta = settled.applied.salaryDelta;
+    flavor = settled.flavor;
+    flavorState = settled.flavorState;
+    expenses = charge(expenses, cashDelta);
+  }
+  if (landed.kind !== "choice") {
+    const year = takeLiving(spec, cash, expenses, salary, rates);
+    cash = year.cash;
+    expenses = year.expenses;
+    living += year.gap;
+  }
   let next = {
     ...state,
     index: i,
     cash,
     salary,
+    expenses,
+    flavorState,
   };
   const spinEntry = baseEntry(
     { ...next, log: state.log },
@@ -300,6 +438,7 @@ export function applyRoll(spec, state, roll) {
       discarded,
       paydayAges: paydays.map((p) => p.age),
       paydayCash,
+      livingGap: living,
       cash,
       salary,
     },
@@ -310,20 +449,12 @@ export function applyRoll(spec, state, roll) {
     return { ...next, phase: "choice", pendingChoiceId: landed.id };
   }
   if (landed.kind !== "payday") {
-    const settled = settleLanding(spec, next, landed);
-    next = {
-      ...next,
-      cash: settled.applied.cash,
-      salary: settled.applied.salary,
-      expenses: charge(next.expenses, settled.applied.cashDelta),
-      flavorState: settled.flavorState,
-    };
     next.log = next.log.concat(
       baseEntry(next, landed, {
         t: "resolve",
-        cashDelta: settled.applied.cashDelta,
-        salaryDelta: settled.applied.salaryDelta,
-        flavor: settled.flavor,
+        cashDelta,
+        salaryDelta,
+        flavor,
       }),
     );
   }
@@ -344,11 +475,34 @@ export function applyRoll(spec, state, roll) {
   return next;
 }
 
+function endDeath(spec, state, age, q) {
+  const space = currentSpace(spec, state);
+  const band = deathBand(spec, age);
+  const custom = spec.mortality.perSquare?.[space.id];
+  const animation = custom || band.animation;
+  const death = { age, q, band: band.id, animation };
+  const next = { ...state, phase: "ended", death };
+  return {
+    ...next,
+    log: state.log.concat(baseEntry(next, space, {
+      t: "death",
+      q,
+      band: band.id,
+      animation,
+      note: "The wedge.",
+    })),
+  };
+}
+
 export function spin(spec, state) {
   if (state.phase !== "play") throw new Error("Cannot spin right now");
+  const age = currentSpace(spec, state).age;
+  const q = deathProbability(spec, age, triangleRates(spec, state.point).mortality);
   const drawn = nextUnit(state.spinState);
-  const roll = 1 + Math.floor(drawn.unit * 10);
-  return applyRoll(spec, { ...state, spinState: drawn.state }, roll);
+  const stepped = { ...state, spinState: drawn.state };
+  const outcome = outcomeFromUnit(drawn.unit, q);
+  if (outcome.death) return endDeath(spec, stepped, age, q);
+  return applyRoll(spec, stepped, outcome.roll);
 }
 
 export function resolveChoice(spec, state, accept) {
@@ -362,9 +516,9 @@ export function resolveChoice(spec, state, accept) {
   let cashDelta = 0;
   let salaryDelta = 0;
   let spent = 0;
+  const rates = triangleRates(spec, state.point);
   if (accept) {
-    const mult = multipliers(spec, state);
-    const applied = applyEffects(cash, salary, space.choice.yes, mult);
+    const applied = applyEffects(cash, salary, space.choice.yes, rates);
     cash = applied.cash;
     salary = applied.salary;
     cashDelta += applied.cashDelta;
@@ -376,17 +530,18 @@ export function resolveChoice(spec, state, accept) {
       const success = drawn.unit < space.choice.fate.p;
       fate = success ? "success" : "fail";
       const bonus = success ? space.choice.fate.successCash : space.choice.fate.failCash;
-      const scaled = scale(bonus || 0, (bonus || 0) < 0 ? mult.expense : mult.income);
-      cash += scaled;
-      cashDelta += scaled;
-      if (scaled < 0) spent -= scaled;
+      cash += bonus || 0;
+      cashDelta += bonus || 0;
+      if ((bonus || 0) < 0) spent -= bonus || 0;
     }
   }
+  const lived = takeLiving(spec, cash, (state.expenses || 0) + spent, salary, rates);
+  cash = lived.cash;
   let next = {
     ...state,
     cash,
     salary,
-    expenses: (state.expenses || 0) + spent,
+    expenses: lived.expenses,
     fateState,
     phase: space.terminal ? "ended" : "play",
     pendingChoiceId: null,
