@@ -197,7 +197,8 @@ function renderStory() {
   if (!space) {
     kickerEl.textContent = "Age 18 \u00b7 choose";
     titleEl.textContent = "Study, or work.";
-    detailEl.textContent = "Study costs $40,000 now and pays $36,000 a year after 21. Work pays $20,000 from the first job. Same number of years either way.";
+    const debt = Math.abs(spec.paths.study.spaces[0].cash);
+    detailEl.textContent = `Study costs ${money(debt)} now and pays ${money(spec.meta.studySalary)} a year after 21. Work pays ${money(spec.meta.workSalary)} from the first job. Same number of years either way.`;
     return;
   }
   const spun = lastSpin();
@@ -355,7 +356,7 @@ if (!specRes.ok) {
   detailEl.textContent = "Start a local server from this folder, then open the page. file:// cannot read the spec.";
 } else {
   spec = await specRes.json();
-  fineEl.textContent = `${spec.meta.rules.join(" ")} Cash figures are playtest amounts only.`;
+  fineEl.textContent = `${spec.meta.rules.join(" ")} Amounts live in the board spec.`;
   state = createGame(spec, seedNumber());
   const preset = params.get("path");
   if (preset === "study" || preset === "work") state = choosePath(spec, state, preset);
