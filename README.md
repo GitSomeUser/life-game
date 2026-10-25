@@ -1,8 +1,10 @@
-# LIFE — v0.1.0
+# LIFE — v0.2.0
 
 Stage 1 of an online board: the working-life track, ages 18–68. One player. Black and white, gender-neutral, in the restrained line of Genesis Noir.
 
-Version numbers follow the design stages. **v0.1.0 is Stage 1.** Stages 2 and later (levers, dashboard, mortality, interest, retirement, decumulation, animation, speed run) are not in this repository.
+**v0.2.0 is still Stage 1.** It retunes the dollars and the event text after the first playtest. v0.1.0 was the first cut of this same board. Stages 2 and later (levers, dashboard, mortality, interest, retirement, decumulation, animation, speed run) are not in this repository.
+
+Events, amounts, and the short source notes live in `spec/accumulation.json`. The page reads those figures. The next refresh is a data change, not a code change.
 
 This is an original board inspired by the rhythm of the classic accumulation game. It is not that game, and it is not affiliated with its publisher.
 
@@ -23,7 +25,7 @@ Open [http://127.0.0.1:5173](http://127.0.0.1:5173). Use a local server. Opening
 5. Some years ask a yes or no. The answer is written into the decision log. Risky answers use the seed.
 6. At 68 the working track stops. That is the end of this version.
 
-Cash and age are the stats. Cash can go negative. The amounts are playtest figures, not a retirement model.
+Cash and age are the stats. Cash can go negative. The amounts are the current figures in the spec, not a retirement model.
 
 Check the engine with:
 
