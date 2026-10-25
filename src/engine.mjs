@@ -1,6 +1,6 @@
 /**
  * Stage 1 simulation. Reads spec/accumulation.json.
- * Deterministic: one seed drives spins, another stream drives risky choices.
+ * Deterministic: spins, risky choices, and flavor cards use separate streams.
  * No levers, interest, mortality, or retirement decisions.
  */
 
@@ -16,7 +16,7 @@ export function track(spec, pathName) {
 export function validate(spec) {
   const errors = [];
   const { ageStart, ageEnd } = spec.meta;
-  if (ageStart !== 18 || ageEnd !== 68) errors.push("age range must be 18\u201368");
+  if (ageStart !== 18 || ageEnd !== 68) errors.push("age range must be 18–68");
   if (spec.meta.yearsPerSpace !== 1) errors.push("stage 1 uses 1 year per space");
   for (const name of ["study", "work"]) {
     const spaces = track(spec, name);
@@ -33,12 +33,32 @@ export function validate(spec) {
       }
       if (space.kind === "choice" && !space.choice?.prompt) errors.push(`${space.id} choice missing prompt`);
       if (space.kind !== "choice" && space.choice) errors.push(`${space.id} choice on non-choice`);
+      if (space.flavor && (space.cash || space.salarySet != null || space.salaryDelta)) {
+        errors.push(`${space.id} flavor year must not move cash or salary`);
+      }
+      if (space.flavor && (space.kind !== "event" || space.tone !== "neutral")) {
+        errors.push(`${space.id} flavor year must be a neutral event`);
+      }
       if (space.terminal && (space.age !== ageEnd || space.kind !== "stop")) {
         errors.push(`${space.id} terminal must be the age-68 stop`);
       }
     });
     const ids = new Set(spaces.map((s) => s.id));
     if (ids.size !== spaces.length) errors.push(`${name} duplicate ids`);
+  }
+  const cards = spec.flavorCards || [];
+  if (!cards.length) errors.push("flavor pool is empty");
+  const moods = {};
+  const cardIds = new Set();
+  for (const card of cards) {
+    if (!card.id || !card.mood || !card.caption || !card.still) errors.push("flavor card missing fields");
+    if (cardIds.has(card.id)) errors.push(`duplicate flavor card ${card.id}`);
+    cardIds.add(card.id);
+    moods[card.mood] = (moods[card.mood] || 0) + 1;
+    if (card.animation != null) errors.push(`${card.id} animation is later`);
+  }
+  for (const mood of ["cute-funny", "funny-sad", "pg-scary", "happy", "exciting"]) {
+    if ((moods[mood] || 0) < 3) errors.push(`${mood} needs several cards`);
   }
   if (errors.length) throw new Error(errors.join("\n"));
   return spec;
@@ -59,6 +79,7 @@ export function createGame(spec, seed) {
     seed: s,
     spinState: s,
     fateState: (s ^ 0xa5a5a5a5) >>> 0,
+    flavorState: (s ^ 0x0f1a70c5) >>> 0,
     path: null,
     index: -1,
     cash: spec.meta.startingCash,
@@ -83,6 +104,35 @@ function applyEffects(cash, salary, effect) {
     cashDelta = effect.cash;
   }
   return { cash, salary, cashDelta, salaryDelta };
+}
+
+function takeFlavor(spec, state) {
+  const pool = spec.flavorCards;
+  const drawn = nextUnit(state.flavorState);
+  const card = pool[Math.floor(drawn.unit * pool.length)];
+  return {
+    flavorState: drawn.state,
+    flavor: {
+      id: card.id,
+      mood: card.mood,
+      caption: card.caption,
+      still: card.still,
+    },
+  };
+}
+
+function settleLanding(spec, state, space) {
+  let flavorState = state.flavorState;
+  let flavor = null;
+  if (space.flavor) {
+    const drawn = takeFlavor(spec, state);
+    flavorState = drawn.flavorState;
+    flavor = drawn.flavor;
+  }
+  const applied = space.flavor
+    ? { cash: state.cash, salary: state.salary, cashDelta: 0, salaryDelta: 0 }
+    : applyEffects(state.cash, state.salary, space);
+  return { applied, flavorState, flavor };
 }
 
 function baseEntry(state, space, extra) {
@@ -121,11 +171,12 @@ export function choosePath(spec, state, pathName) {
   if (space.kind === "choice") {
     return { ...next, phase: "choice", pendingChoiceId: space.id };
   }
-  const applied = applyEffects(next.cash, next.salary, space);
+  const settled = settleLanding(spec, next, space);
   next = {
     ...next,
-    cash: applied.cash,
-    salary: applied.salary,
+    cash: settled.applied.cash,
+    salary: settled.applied.salary,
+    flavorState: settled.flavorState,
     phase: space.terminal ? "ended" : "play",
   };
   return {
@@ -133,8 +184,9 @@ export function choosePath(spec, state, pathName) {
     log: next.log.concat(
       baseEntry(next, space, {
         t: "resolve",
-        cashDelta: applied.cashDelta,
-        salaryDelta: applied.salaryDelta,
+        cashDelta: settled.applied.cashDelta,
+        salaryDelta: settled.applied.salaryDelta,
+        flavor: settled.flavor,
       }),
     ),
   };
@@ -142,7 +194,7 @@ export function choosePath(spec, state, pathName) {
 
 export function applyRoll(spec, state, roll) {
   if (state.phase !== "play") throw new Error("Cannot spin right now");
-  if (!Number.isInteger(roll) || roll < 1 || roll > 10) throw new Error("Roll must be 1\u201310");
+  if (!Number.isInteger(roll) || roll < 1 || roll > 10) throw new Error("Roll must be 1–10");
   const spaces = track(spec, state.path);
   const from = spaces[state.index];
   let steps = roll;
@@ -192,13 +244,19 @@ export function applyRoll(spec, state, roll) {
     return { ...next, phase: "choice", pendingChoiceId: landed.id };
   }
   if (landed.kind !== "payday") {
-    const applied = applyEffects(next.cash, next.salary, landed);
-    next = { ...next, cash: applied.cash, salary: applied.salary };
+    const settled = settleLanding(spec, next, landed);
+    next = {
+      ...next,
+      cash: settled.applied.cash,
+      salary: settled.applied.salary,
+      flavorState: settled.flavorState,
+    };
     next.log = next.log.concat(
       baseEntry(next, landed, {
         t: "resolve",
-        cashDelta: applied.cashDelta,
-        salaryDelta: applied.salaryDelta,
+        cashDelta: settled.applied.cashDelta,
+        salaryDelta: settled.applied.salaryDelta,
+        flavor: settled.flavor,
       }),
     );
   }

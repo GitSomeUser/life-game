@@ -141,6 +141,62 @@ test("both paths reach 68 for several seeds and policies", () => {
   }
 });
 
+test("no-stakes years draw a flavor card and leave cash alone", () => {
+  const locked = {
+    "study-tuition": -124000,
+    "child": -12000,
+    twins: -22000,
+    partnership: -8000,
+    home: -42000,
+  };
+  for (const [id, cash] of Object.entries(locked)) {
+    const space = track(spec, "study").find((s) => s.id === id) || track(spec, "work").find((s) => s.id === id);
+    assert.equal(space.cash, cash);
+    assert.equal(space.flavor, undefined);
+  }
+  assert.equal(spec.paths.study.spaces[3].salarySet, 68000);
+  assert.equal(spec.paths.work.spaces[0].salarySet, 48000);
+  assert.equal(spec.paths.work.spaces[3].salaryDelta, 10000);
+  for (const id of ["study-nights", "quiet-37", "reunion", "quiet-50", "quiet-56", "festival", "quiet-61", "quiet-65", "farewell"]) {
+    const space = track(spec, "study").find((s) => s.id === id);
+    assert.equal(space.flavor, true);
+    assert.equal(space.cash, undefined);
+    assert.equal(space.kind, "event");
+    assert.equal(space.tone, "neutral");
+  }
+  let state = choosePath(spec, createGame(spec, 5), "study");
+  const before = state.cash;
+  state = applyRoll(spec, state, 1);
+  assert.equal(currentSpace(spec, state).id, "study-nights");
+  assert.equal(state.cash, before);
+  assert.equal(state.salary, 0);
+  const card = state.log.at(-1).flavor;
+  assert.ok(card.id && card.caption && card.still);
+  const again = applyRoll(spec, choosePath(spec, createGame(spec, 5), "study"), 1);
+  assert.equal(again.log.at(-1).flavor.id, card.id);
+  const otherAnswers = (() => {
+    let s = choosePath(spec, createGame(spec, 11), "work");
+    const ids = [];
+    let guard = 0;
+    while (s.phase !== "ended" && guard++ < 80) {
+      s = s.phase === "choice" ? resolveChoice(spec, s, true) : spin(spec, s);
+      const flav = s.log.at(-1).flavor;
+      if (flav) ids.push(flav.id);
+    }
+    return ids;
+  })();
+  let declined = choosePath(spec, createGame(spec, 11), "work");
+  const declinedIds = [];
+  let guard = 0;
+  while (declined.phase !== "ended" && guard++ < 80) {
+    declined = declined.phase === "choice" ? resolveChoice(spec, declined, false) : spin(spec, declined);
+    const flav = declined.log.at(-1).flavor;
+    if (flav) declinedIds.push(flav.id);
+  }
+  assert.deepEqual(otherAnswers, declinedIds);
+  assert.ok(otherAnswers.length > 0);
+});
+
 test("tone mix is recorded for a later matching phase", () => {
   const study = toneCounts(track(spec, "study"));
   const work = toneCounts(track(spec, "work"));

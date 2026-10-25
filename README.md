@@ -1,8 +1,10 @@
-# LIFE — v0.2.1
+# LIFE — v0.2.2
 
 Stage 1 of an online board: the working-life track, ages 18–68. One player. Black and white, gender-neutral, in the restrained line of Genesis Noir.
 
-**v0.2.1 is still Stage 1.** It rewrites the event layer into present-day life. v0.2.0 retuned the dollars. v0.1.0 was the first cut of this same board. Stages 2 and later (levers, dashboard, mortality, interest, retirement, decumulation, animation, speed run) are not in this repository.
+**v0.2.2 is still Stage 1.** No-stakes years draw a flavor card from the spec. v0.2.1 rewrote the event layer. v0.2.0 retuned the dollars. v0.1.0 was the first cut of this same board. Stages 2 and later (levers, dashboard, mortality, interest, retirement, decumulation, animation, speed run) are not in this repository.
+
+Flavor cards live in `spec/accumulation.json`, with original stills in `art/flavor/`. Each card has a caption, a still, and an empty animation slot. The still shows now. A later pass can replace it.
 
 Events, amounts, and the short source notes live in `spec/accumulation.json`. The page reads those figures. The next refresh is a data change, not a code change.
 
