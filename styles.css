@@ -173,10 +173,130 @@ body { overflow: hidden; }
 
 #share-sum, #save-note { margin-top: 8px; }
 
-#setup.locked .setup-lead,
-#setup.locked .presets,
-#setup.locked .shares,
-#setup.locked #share-sum { display: none; }
+#setup.locked .setup-lead { display: none; }
+
+.triangle-wrap { margin-top: 8px; max-width: 210px; }
+
+#triangle {
+  width: 100%;
+  height: auto;
+  color: var(--ink);
+  touch-action: none;
+  cursor: grab;
+}
+
+#triangle.locked { cursor: default; }
+
+#triangle .face { fill: none; stroke: currentColor; stroke-width: 1.2; }
+#triangle .vertex-label { fill: var(--muted); font-size: 11px; letter-spacing: 0.14em; font-family: var(--sans); }
+#triangle .handle { fill: var(--bg); stroke: currentColor; stroke-width: 1.6; }
+
+.corners { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 8px; }
+
+.corners button {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: 11px/1 var(--sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.delta {
+  margin-left: 4px;
+  font-style: normal;
+  font-family: var(--sans);
+  font-size: 0.62em;
+  letter-spacing: 0;
+}
+
+.delta.good { color: #2f9e62; }
+.delta.bad { color: #d64545; }
+
+#wedge-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+#death[hidden] { display: none; }
+
+#death {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 18px;
+  background: rgba(7, 7, 7, 0.94);
+  color: var(--ink);
+}
+
+#death-stage { width: min(440px, 86vw); height: 280px; }
+#death-stage svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.4; }
+#death-stage .boat,
+#death-stage .coat,
+#death-stage .pane,
+#death-stage .leaf,
+#death-stage .drape,
+#death-stage .slit,
+#death-stage .page,
+#death-stage .iris { transform-box: fill-box; transform-origin: center; }
+#death-stage .hand { transform-box: view-box; }
+#death-caption {
+  margin: 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 28px;
+}
+
+#death-stage .boat { animation: sink 2.6s ease-in forwards; }
+#death-stage .lamp { animation: lamp-out 2.4s ease-in forwards; }
+#death-stage .hand { transform-origin: 100px 70px; animation: hand 2.2s ease-out forwards; }
+#death-stage .coat { animation: drop 2.4s ease-in forwards; }
+#death-stage .pane { animation: pane 2.4s ease-in forwards; }
+#death-stage .leaf { animation: fall 2.6s ease-in forwards; }
+#death-stage .arc { animation: hush 2.6s ease-out forwards; }
+#death-stage .a2 { animation-delay: 0.15s; }
+#death-stage .a3 { animation-delay: 0.3s; }
+#death-stage .drape { animation: fade-off 2.4s ease-in forwards; }
+#death-stage .slit { animation: slit 2.5s ease-in forwards; }
+#death-stage .page { transform-origin: 58px 70px; animation: turn 2.4s ease-in forwards; }
+#death-stage .iris { animation: iris 2.4s ease-in forwards; }
+
+#death-stage.still * { animation: none !important; }
+#death-stage.still .boat { transform: translateY(26px); opacity: 0.25; }
+#death-stage.still .lamp { opacity: 0.15; }
+#death-stage.still .hand { transform: rotate(220deg); }
+#death-stage.still .coat { transform: translateY(18px); opacity: 0.3; }
+#death-stage.still .pane { transform: scaleX(0.08); }
+#death-stage.still .leaf { transform: translateY(36px); opacity: 0.35; }
+#death-stage.still .arc { opacity: 0.1; }
+#death-stage.still .drape { opacity: 0; }
+#death-stage.still .slit { transform: scaleX(0.08); }
+#death-stage.still .page { transform: skewY(-18deg); opacity: 0.25; }
+#death-stage.still .iris { transform: scale(0.05); }
+
+@keyframes sink { to { transform: translateY(26px); opacity: 0.25; } }
+@keyframes lamp-out { to { opacity: 0.15; } }
+@keyframes hand { to { transform: rotate(220deg); } }
+@keyframes drop { to { transform: translateY(18px); opacity: 0.3; } }
+@keyframes pane { to { transform: scaleX(0.08); } }
+@keyframes fall { to { transform: translateY(36px); opacity: 0.35; } }
+@keyframes hush { to { opacity: 0.1; } }
+@keyframes fade-off { to { opacity: 0; } }
+@keyframes slit { to { transform: scaleX(0.08); } }
+@keyframes turn { to { transform: skewY(-18deg); opacity: 0.25; } }
+@keyframes iris { to { transform: scale(0.05); } }
+
+@media (prefers-reduced-motion: reduce) {
+  #death-stage * { animation: none !important; }
+}
 
 #setup[hidden] { display: none; }
 
