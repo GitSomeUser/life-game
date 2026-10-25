@@ -22,34 +22,41 @@ test("spec maps one space to each age from 18 through 68 on both paths", () => {
 });
 
 test("study pays tuition immediately and sets salary only at the job stop", () => {
+  const tuition = spec.paths.study.spaces[0].cash;
+  const salary = spec.paths.study.spaces[3].salarySet;
   let state = choosePath(spec, createGame(spec, 7), "study");
-  assert.equal(state.cash, 10000 - 40000);
+  assert.equal(state.cash, spec.meta.startingCash + tuition);
   assert.equal(state.salary, 0);
   assert.equal(currentSpace(spec, state).id, "study-tuition");
   state = applyRoll(spec, state, 10);
   assert.equal(currentSpace(spec, state).id, "study-role");
-  assert.equal(state.salary, 36000);
+  assert.equal(state.salary, salary);
+  assert.equal(state.salary, spec.meta.studySalary);
   assert.equal(state.phase, "play");
   const spinEntry = state.log.find((e) => e.t === "spin");
   assert.equal(spinEntry.discarded, 7);
 });
 
 test("work collects the early payday when passing it, then can raise only on a landing", () => {
+  const pay = spec.meta.workSalary;
+  const raise = spec.paths.work.spaces[3].salaryDelta;
   let state = choosePath(spec, createGame(spec, 3), "work");
-  assert.equal(state.salary, 20000);
+  assert.equal(state.salary, pay);
   state = applyRoll(spec, state, 1);
   assert.equal(currentSpace(spec, state).age, 19);
-  assert.equal(state.cash, 10000 + 20000);
+  assert.equal(state.cash, spec.meta.startingCash + pay);
   state = applyRoll(spec, state, 2);
   assert.equal(currentSpace(spec, state).id, "work-raise");
-  assert.equal(state.salary, 24000);
+  assert.equal(state.salary, pay + raise);
 });
 
 test("a stop cuts the move and still pays salaries passed on the way", () => {
+  const pay = spec.meta.workSalary;
+  const party = spec.paths.shared.spaces.find((s) => s.id === "partnership").cash;
   let state = choosePath(spec, createGame(spec, 1), "work");
   state = applyRoll(spec, state, 10);
   assert.equal(currentSpace(spec, state).id, "partnership");
-  assert.equal(state.cash, 10000 + 20000 + 20000 - 6000);
+  assert.equal(state.cash, spec.meta.startingCash + pay + pay + party);
   const spinEntry = state.log.find((e) => e.t === "spin");
   assert.deepEqual(spinEntry.paydayAges, [19, 23]);
   assert.equal(spinEntry.toAge, 26);
@@ -89,10 +96,13 @@ test("passing a payday then landing on a cost pays salary once and the cost once
   assert.equal(currentSpace(spec, state).id, "partnership");
   state = applyRoll(spec, state, 3);
   assert.equal(currentSpace(spec, state).id, "child");
+  const pay = spec.meta.workSalary;
+  const party = spec.paths.shared.spaces.find((s) => s.id === "partnership").cash;
+  const child = spec.paths.shared.spaces.find((s) => s.id === "child").cash;
   const lastSpin = [...state.log].reverse().find((e) => e.t === "spin");
   assert.deepEqual(lastSpin.paydayAges, [28]);
-  assert.equal(lastSpin.paydayCash, 20000);
-  assert.equal(state.cash, 10000 + 20000 + 20000 - 6000 + 20000 - 5000);
+  assert.equal(lastSpin.paydayCash, pay);
+  assert.equal(state.cash, spec.meta.startingCash + pay + pay + party + pay + child);
 });
 
 test("risky yes outcomes stay on the fate stream", () => {
