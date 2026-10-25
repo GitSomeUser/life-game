@@ -5,6 +5,9 @@ const kickerEl = document.querySelector("#kicker");
 const titleEl = document.querySelector("#event-title");
 const detailEl = document.querySelector("#event-detail");
 const choicesEl = document.querySelector("#choices");
+const flavorCardEl = document.querySelector("#flavor-card");
+const flavorStillEl = document.querySelector("#flavor-still");
+const flavorCaptionEl = document.querySelector("#flavor-caption");
 const ageEl = document.querySelector("#age");
 const cashEl = document.querySelector("#cash");
 const payEl = document.querySelector("#pay");
@@ -28,7 +31,7 @@ const params = new URLSearchParams(location.search);
 seedInput.value = params.get("seed") || String(Math.floor(Math.random() * 1_000_000_000));
 
 function money(n) {
-  const sign = n < 0 ? "\u2212" : "";
+  const sign = n < 0 ? "−" : "";
   return `${sign}$${Math.abs(n).toLocaleString("en-US")}`;
 }
 
@@ -44,7 +47,14 @@ function drawWheel() {
     const y = 100 + Math.sin(angle) * 74;
     nums.push(`<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-size="11" font-family="Palatino, Georgia, serif">${n}</text>`);
   }
-  wheel.innerHTML = `\n    <circle cx="100" cy="100" r="96" fill="none" stroke="currentColor" stroke-width="1"/>\n    <circle cx="100" cy="100" r="62" fill="none" stroke="currentColor" stroke-width="1" opacity="0.45"/>\n    ${nums.join("")}\n    <g class="needle">\n      <line x1="100" y1="100" x2="100" y2="28" stroke="currentColor" stroke-width="1.4"/>\n      <circle cx="100" cy="100" r="3" fill="currentColor"/>\n    </g>`;
+  wheel.innerHTML = `
+    <circle cx="100" cy="100" r="96" fill="none" stroke="currentColor" stroke-width="1"/>
+    <circle cx="100" cy="100" r="62" fill="none" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+    ${nums.join("")}
+    <g class="needle">
+      <line x1="100" y1="100" x2="100" y2="28" stroke="currentColor" stroke-width="1.4"/>
+      <circle cx="100" cy="100" r="3" fill="currentColor"/>
+    </g>`;
 }
 
 function pointNeedle(roll) {
@@ -100,10 +110,11 @@ function logLine(entry) {
   if (entry.t === "spin") {
     const stop = entry.discarded ? `, stop, ${entry.discarded} unused` : "";
     const pay = entry.paydayCash ? `, payday ${money(entry.paydayCash)}` : "";
-    return `${entry.n}. Spin ${entry.roll}. ${entry.fromAge} \u2192 ${entry.toAge}${stop}${pay}. ${entry.title}. Cash ${money(entry.cash)}.`;
+    return `${entry.n}. Spin ${entry.roll}. ${entry.fromAge} → ${entry.toAge}${stop}${pay}. ${entry.title}. Cash ${money(entry.cash)}.`;
   }
   if (entry.t === "resolve") {
-    return `${entry.n}. ${entry.title}. Cash ${money(entry.cash)}. Pay ${money(entry.salary)}.`;
+    const name = entry.flavor ? entry.flavor.caption : entry.title;
+    return `${entry.n}. ${name}. Cash ${money(entry.cash)}. Pay ${money(entry.salary)}.`;
   }
   if (entry.t === "end") return `${entry.n}. ${entry.note} Cash ${money(entry.cash)}.`;
   return `${entry.n}. ${entry.t}`;
@@ -191,11 +202,42 @@ function renderBoard() {
   });
 }
 
+const moodLine = {
+  "cute-funny": "Cute, and a little silly.",
+  "funny-sad": "Funny, and a little sad.",
+  "pg-scary": "A small scare. Nothing cruel.",
+  happy: "A happy beat.",
+  exciting: "The year picks up.",
+};
+
+function flavorSeen(space) {
+  if (!space?.flavor) return null;
+  for (let i = state.log.length - 1; i >= 0; i -= 1) {
+    const entry = state.log[i];
+    if (entry.spaceId === space.id && entry.flavor) return entry.flavor;
+  }
+  return null;
+}
+
+function showFlavor(card) {
+  if (!card) {
+    flavorCardEl.hidden = true;
+    flavorStillEl.removeAttribute("src");
+    flavorCaptionEl.textContent = "";
+    return;
+  }
+  flavorCardEl.hidden = false;
+  flavorStillEl.src = card.still;
+  flavorStillEl.alt = card.caption;
+  flavorCaptionEl.textContent = moodLine[card.mood] || card.mood;
+}
+
 function renderStory() {
   const space = inspect || currentSpace(spec, state);
   choicesEl.replaceChildren();
   if (!space) {
-    kickerEl.textContent = "Age 18 \u00b7 choose";
+    showFlavor(null);
+    kickerEl.textContent = "Age 18 · choose";
     titleEl.textContent = "Study, or work.";
     const debt = Math.abs(spec.paths.study.spaces[0].cash);
     detailEl.textContent = `Study costs ${money(debt)} now and pays ${money(spec.meta.studySalary)} a year after 21. Work pays ${money(spec.meta.workSalary)} from the first job. Same number of years either way.`;
@@ -207,8 +249,11 @@ function renderStory() {
   if (space.kind === "payday") bits.push("payday");
   if (space.kind === "choice") bits.push("choice");
   if (inspect && (!currentSpace(spec, state) || inspect.id !== currentSpace(spec, state).id)) bits.push("on the board");
-  kickerEl.textContent = bits.join(" \u00b7 ");
-  titleEl.textContent = space.title;
+  const card = flavorSeen(space);
+  showFlavor(card);
+  if (card) bits.push(moodLine[card.mood] || card.mood);
+  kickerEl.textContent = bits.join(" · ");
+  titleEl.textContent = card ? card.caption : space.title;
   const extra = [];
   if (!inspect && spun && spun.spaceId === space.id && spun.paydayCash) {
     extra.push(`Payday on the way: ${money(spun.paydayCash)}.`);
@@ -218,7 +263,8 @@ function renderStory() {
   }
   const here = currentSpace(spec, state);
   if (!inspect && state.phase === "choice" && here?.choice) extra.unshift(here.choice.prompt);
-  detailEl.textContent = [space.detail, ...extra].join(" ");
+  const lead = card ? "" : space.detail;
+  detailEl.textContent = [lead, ...extra].filter(Boolean).join(" ");
 
   if (state.phase === "choice" && here?.choice) {
     for (const [accept, label] of [
