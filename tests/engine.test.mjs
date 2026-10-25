@@ -2,15 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import spec from "../spec/accumulation.json" with { type: "json" };
 import {
+  annualExpenses,
   applyRoll,
+  axis,
   choosePath,
   createGame,
   currentSpace,
+  deathProbability,
+  lifeExpectancy,
+  monthlyExpenses,
+  outcomeFromUnit,
   portraitStats,
   resolveChoice,
   spin,
   toneCounts,
   track,
+  triangleRates,
   validate,
 } from "../src/engine.mjs";
 
@@ -133,8 +140,9 @@ test("both paths reach 68 for several seeds and policies", () => {
         while (state.phase !== "ended" && guard++ < 100) {
           state = state.phase === "choice" ? resolveChoice(spec, state, accept) : spin(spec, state);
         }
-        assert.equal(state.phase, "ended", `${path} seed ${seed}`);
-        assert.equal(currentSpace(spec, state).age, 68);
+    assert.equal(state.phase, "ended", `${path} seed ${seed} accept ${accept}`);
+    const end = state.death ? state.death.age : currentSpace(spec, state).age;
+    assert.ok(state.death || end === 68, `${path} seed ${seed}`);
         assert.equal(Number.isFinite(state.cash), true);
         assert.equal(state.log[0].choice, "path");
       }
@@ -198,74 +206,125 @@ test("no-stakes years draw a flavor card and leave cash alone", () => {
   assert.ok(otherAnswers.length > 0);
 });
 
-test("levers scale income and expenses and leave the spin stream alone", () => {
-  const health = { health: 100, work: 0, frugality: 0 };
-  const work = { health: 0, work: 100, frugality: 0 };
-  const frugal = { health: 0, work: 0, frugality: 100 };
-  let studied = choosePath(spec, createGame(spec, 7, health), "study");
-  assert.equal(studied.cash, spec.meta.startingCash + Math.round(-124000 * 0.9));
-  assert.equal(studied.expenses, Math.round(124000 * 0.9));
+test("the center and the three corners match the triangle", () => {
+  const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} vs ${expected}`);
+  const center = triangleRates(spec, { h: 1 / 3, w: 1 / 3, f: 1 / 3 });
+  close(center.income, 1);
+  close(center.spend, 0.6);
+  close(center.mortality, 1);
+  close(center.healthCost, 1);
+  close(axis(1 / 3), 0);
+  assert.equal(annualExpenses(48000, center, spec), 28800);
+  assert.equal(monthlyExpenses(48000, center, spec), 2400);
+
+  const health = triangleRates(spec, { h: 1, w: 0, f: 0 });
+  close(health.income, 0.8);
+  close(health.spend, 0.8);
+  close(health.mortality, 0.5);
+  close(health.healthCost, 0.5);
+  const healthIncome = Math.round(48000 * 0.8);
+  const healthAnnual = Math.round(healthIncome * 0.8 * (0.75 + 0.25 * 0.5));
+  assert.equal(annualExpenses(healthIncome, health, spec), healthAnnual);
+
+  const work = triangleRates(spec, { h: 0, w: 1, f: 0 });
+  close(work.income, 1.2);
+  close(work.spend, 0.8);
+  close(work.mortality, 1.5);
+  close(work.healthCost, 1.2);
+  const workIncome = Math.round(48000 * 1.2);
+  assert.equal(annualExpenses(workIncome, work, spec), Math.round(workIncome * 0.8 * (0.75 + 0.25 * 1.2)));
+
+  const frugal = triangleRates(spec, { h: 0, w: 0, f: 1 });
+  close(frugal.income, 0.8);
+  close(frugal.spend, 0.4);
+  close(frugal.mortality, 1.5);
+  close(frugal.healthCost, 1.2);
+  const frugalIncome = Math.round(48000 * 0.8);
+  assert.equal(annualExpenses(frugalIncome, frugal, spec), Math.round(frugalIncome * 0.4 * (0.75 + 0.25 * 1.2)));
+
+  let studied = choosePath(spec, createGame(spec, 7, { h: 1, w: 0, f: 0 }), "study");
+  assert.equal(studied.cash, spec.meta.startingCash - 124000);
+  assert.equal(studied.salary, 0);
   studied = applyRoll(spec, studied, 10);
-  assert.equal(studied.salary, Math.round(68000 * 1.2));
-  assert.equal(portraitStats(spec, studied).happiness, 100);
-  assert.equal(portraitStats(spec, studied).incomeBps, 12000);
-  assert.equal(portraitStats(spec, studied).expenseBps, 9000);
+  assert.equal(studied.salary, Math.round(68000 * 0.8));
 
-  let hired = choosePath(spec, createGame(spec, 3, work), "work");
-  assert.equal(hired.salary, Math.round(48000 * 1.3));
+  let hired = choosePath(spec, createGame(spec, 3, { h: 0, w: 1, f: 0 }), "work");
+  assert.equal(hired.salary, workIncome);
+  const centerHire = choosePath(spec, createGame(spec, 3), "work");
+  assert.equal(centerHire.salary, 48000);
+  assert.equal(centerHire.cash, spec.meta.startingCash);
   hired = applyRoll(spec, hired, 1);
-  assert.equal(hired.cash, spec.meta.startingCash + hired.salary);
-  assert.equal(hired.expenses, 0);
-  hired = applyRoll(spec, hired, 2);
-  assert.equal(hired.salary, Math.round(48000 * 1.3) + Math.round(10000 * 1.3));
+  assert.equal(hired.salary, workIncome);
 
-  const pay = 48000;
-  const party = Math.round(-8000 * 0.7);
-  let plain = choosePath(spec, createGame(spec, 1, frugal), "work");
+  let plain = choosePath(spec, createGame(spec, 1, { h: 0, w: 0, f: 1 }), "work");
+  assert.equal(plain.salary, frugalIncome);
   plain = applyRoll(spec, plain, 10);
   assert.equal(currentSpace(spec, plain).id, "partnership");
-  assert.equal(plain.salary, pay);
-  assert.equal(plain.cash, spec.meta.startingCash + pay + pay + party);
-  assert.equal(plain.expenses, -party);
-  assert.equal(portraitStats(spec, plain).savings, plain.cash);
-  assert.equal(portraitStats(spec, plain).happiness, 90);
+  assert.equal(plain.salary, frugalIncome);
+  const party = spec.paths.shared.spaces.find((s) => s.id === "partnership").cash;
+  assert.equal(party, -8000);
 
-  assert.throws(() => createGame(spec, 1, { health: 50, work: 50, frugality: 50 }));
-  const bare = choosePath(spec, createGame(spec, 7), "study");
-  assert.equal(bare.cash, spec.meta.startingCash - 124000);
-  assert.equal(bare.levers, null);
+  const age = 18;
+  assert.equal(deathProbability(spec, age, 1), spec.mortality.longer.q[0]);
+  close(deathProbability(spec, age, health.mortality), spec.mortality.longer.q[0] * 0.5);
+  close(deathProbability(spec, age, work.mortality), spec.mortality.longer.q[0] * 1.5);
+  assert.ok(lifeExpectancy(spec, age, health.mortality) > lifeExpectancy(spec, age, 1));
+  assert.ok(lifeExpectancy(spec, age, 1) > lifeExpectancy(spec, age, work.mortality));
+  assert.equal(lifeExpectancy(spec, 68, 1), 0);
+  assert.equal(spec.mortality.longer.q.length, 51);
+  assert.equal(spec.mortality.shorter.q.length, 51);
+  spec.mortality.shorter.q.forEach((q, i) => {
+    assert.ok(q > spec.mortality.longer.q[i]);
+    assert.ok(Math.abs(q - (spec.mortality.shorter.male[i] + spec.mortality.shorter.female[i]) / 2) < 1e-12);
+  });
 
-  const flavorIds = (levers) => {
-    let state = choosePath(spec, createGame(spec, 11, levers), "work");
-    const ids = [];
+  const stats = portraitStats(spec, hired);
+  assert.equal(stats.income, workIncome);
+  assert.ok(stats.incomeDelta > 0);
+  assert.ok(stats.expenseDelta > 0);
+  assert.ok(stats.deathDelta > 0);
+  const centerStats = portraitStats(spec, centerHire);
+  assert.equal(centerStats.incomeDelta, 0);
+  assert.equal(centerStats.expenseDelta, 0);
+  assert.equal(centerStats.deathDelta, 0);
+
+  assert.deepEqual(outcomeFromUnit(0.00001, 0.2), { death: true, roll: 0 });
+  assert.deepEqual(outcomeFromUnit(0.2, 0.2), { death: false, roll: 1 });
+  assert.equal(outcomeFromUnit(0.999, 0.2).roll, 10);
+
+  const play = (point) => {
+    let state = choosePath(spec, createGame(spec, 11, point), "work");
+    const marks = [];
     let guard = 0;
     while (state.phase !== "ended" && guard++ < 80) {
       state = state.phase === "choice" ? resolveChoice(spec, state, false) : spin(spec, state);
-      if (state.log.at(-1).flavor) ids.push(state.log.at(-1).flavor.id);
+      const last = state.log.at(-1);
+      if (last.flavor) marks.push(`f:${last.flavor.id}`);
+      if (last.t === "death") marks.push(`d:${last.age}`);
     }
-    return ids;
+    return marks;
   };
-  assert.deepEqual(flavorIds(work), flavorIds(null));
+  assert.deepEqual(play({ h: 0, w: 1, f: 0 }), play({ h: 0, w: 1, f: 0 }));
 
-  const reachMarket = (levers) => {
-    let state = choosePath(spec, createGame(spec, 99, levers), "work");
+  let died = null;
+  for (let seed = 1; seed < 4000 && !died; seed += 1) {
+    let state = choosePath(spec, createGame(spec, seed, { h: 0, w: 1, f: 0 }), "work");
     let guard = 0;
-    while (currentSpace(spec, state).id !== "market" && guard++ < 40) {
-      state = state.phase === "choice" ? resolveChoice(spec, state, false) : applyRoll(spec, state, 1);
-    }
+    while (state.phase === "play" && guard++ < 80) state = spin(spec, state);
+    if (state.death) died = { seed, age: state.death.age, q: state.death.q };
+  }
+  assert.ok(died, "a work-corner life should be able to hit the wedge");
+  const replay = (seed) => {
+    let state = choosePath(spec, createGame(spec, seed, { h: 0, w: 1, f: 0 }), "work");
+    let guard = 0;
+    while (state.phase === "play" && guard++ < 80) state = spin(spec, state);
     return state;
   };
-  const waiting = reachMarket(work);
-  const unscaled = resolveChoice(spec, reachMarket(null), true);
-  const scaled = resolveChoice(spec, waiting, true);
-  assert.equal(unscaled.log.at(-1).fate, scaled.log.at(-1).fate);
-  const stake = Math.round(10000 * 1.1);
-  if (scaled.log.at(-1).fate === "success") {
-    assert.equal(scaled.log.at(-1).cashDelta, -stake + Math.round(24000 * 1.3));
-  } else {
-    assert.equal(scaled.log.at(-1).cashDelta, -stake);
-  }
-  assert.equal(scaled.expenses, waiting.expenses + stake);
+  const once = replay(died.seed);
+  const twice = replay(died.seed);
+  assert.equal(once.death.age, twice.death.age);
+  assert.equal(once.index, twice.index);
+  assert.deepEqual(once.log, twice.log);
 });
 
 test("tone mix is recorded for a later matching phase", () => {
