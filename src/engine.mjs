@@ -1,7 +1,8 @@
 /**
- * Stage 1 simulation. Reads spec/accumulation.json.
+ * Accumulation simulation. Reads spec/accumulation.json.
  * Deterministic: spins, risky choices, and flavor cards use separate streams.
- * No levers, interest, mortality, or retirement decisions.
+ * Levers, when set, scale income and expenses. Lifespan, interest, mortality,
+ * and retirement decisions are not in this version.
  */
 
 const KINDS = new Set(["event", "payday", "stop", "choice"]);
@@ -60,8 +61,61 @@ export function validate(spec) {
   for (const mood of ["cute-funny", "funny-sad", "pg-scary", "happy", "exciting"]) {
     if ((moods[mood] || 0) < 3) errors.push(`${mood} needs several cards`);
   }
+  const levers = spec.meta.levers;
+  if (levers) {
+    for (const name of ["health", "work", "frugality"]) {
+      const row = levers[name];
+      if (!row) errors.push(`missing lever ${name}`);
+      else {
+        for (const key of ["incomeBps", "expenseBps", "happinessBps"]) {
+          if (!Number.isInteger(row[key]) || row[key] < 0) errors.push(`${name} ${key} must be a basis point count`);
+        }
+      }
+    }
+  }
   if (errors.length) throw new Error(errors.join("\n"));
   return spec;
+}
+
+export function parseLevers(raw) {
+  if (raw == null) return null;
+  const health = raw.health;
+  const work = raw.work;
+  const frugality = raw.frugality;
+  for (const n of [health, work, frugality]) {
+    if (!Number.isInteger(n) || n < 0 || n > 100) {
+      throw new Error("Lever shares are whole numbers from 0 to 100");
+    }
+  }
+  if (health + work + frugality !== 100) throw new Error("Lever shares must add to 100");
+  return { health, work, frugality };
+}
+
+export function multipliers(spec, state) {
+  const levers = state?.levers;
+  const table = spec.meta.levers;
+  if (!levers || !table) return { income: 10000, expense: 10000, happiness: 10000 };
+  const blend = (key) => Math.round(
+    (levers.health * table.health[key] + levers.work * table.work[key] + levers.frugality * table.frugality[key]) / 100,
+  );
+  return { income: blend("incomeBps"), expense: blend("expenseBps"), happiness: blend("happinessBps") };
+}
+
+export function portraitStats(spec, state) {
+  const mult = multipliers(spec, state);
+  return {
+    savings: Math.max(state.cash, 0),
+    expenses: state.expenses || 0,
+    income: state.salary,
+    happiness: Math.round(mult.happiness / 100),
+    incomeBps: mult.income,
+    expenseBps: mult.expense,
+  };
+}
+
+function scale(amount, bps) {
+  if (!amount) return 0;
+  return Math.round((amount * bps) / 10000);
 }
 
 function nextUnit(a) {
@@ -72,7 +126,7 @@ function nextUnit(a) {
   return { state: x >>> 0, unit: ((t ^ (t >>> 14)) >>> 0) / 4294967296 };
 }
 
-export function createGame(spec, seed) {
+export function createGame(spec, seed, levers) {
   validate(spec);
   const s = seed >>> 0;
   return {
@@ -84,26 +138,37 @@ export function createGame(spec, seed) {
     index: -1,
     cash: spec.meta.startingCash,
     salary: 0,
+    expenses: 0,
+    levers: parseLevers(levers),
     phase: "choose",
     pendingChoiceId: null,
     log: [],
   };
 }
 
-function applyEffects(cash, salary, effect) {
+function applyEffects(cash, salary, effect, mult) {
   if (!effect) return { cash, salary, cashDelta: 0, salaryDelta: 0 };
+  const income = mult?.income ?? 10000;
+  const expense = mult?.expense ?? 10000;
   let cashDelta = 0;
   let salaryDelta = 0;
-  if (effect.salarySet != null) salary = effect.salarySet;
+  if (effect.salarySet != null) salary = scale(effect.salarySet, income);
   if (effect.salaryDelta) {
-    salary += effect.salaryDelta;
-    salaryDelta = effect.salaryDelta;
+    const delta = scale(effect.salaryDelta, income);
+    salary += delta;
+    salaryDelta = delta;
   }
   if (effect.cash) {
-    cash += effect.cash;
-    cashDelta = effect.cash;
+    const delta = scale(effect.cash, effect.cash < 0 ? expense : income);
+    cash += delta;
+    cashDelta = delta;
   }
   return { cash, salary, cashDelta, salaryDelta };
+}
+
+function charge(expenses, cashDelta) {
+  if (cashDelta < 0) return (expenses || 0) - cashDelta;
+  return expenses || 0;
 }
 
 function takeFlavor(spec, state) {
@@ -131,7 +196,7 @@ function settleLanding(spec, state, space) {
   }
   const applied = space.flavor
     ? { cash: state.cash, salary: state.salary, cashDelta: 0, salaryDelta: 0 }
-    : applyEffects(state.cash, state.salary, space);
+    : applyEffects(state.cash, state.salary, space, multipliers(spec, state));
   return { applied, flavorState, flavor };
 }
 
@@ -176,6 +241,7 @@ export function choosePath(spec, state, pathName) {
     ...next,
     cash: settled.applied.cash,
     salary: settled.applied.salary,
+    expenses: charge(next.expenses, settled.applied.cashDelta),
     flavorState: settled.flavorState,
     phase: space.terminal ? "ended" : "play",
   };
@@ -249,6 +315,7 @@ export function applyRoll(spec, state, roll) {
       ...next,
       cash: settled.applied.cash,
       salary: settled.applied.salary,
+      expenses: charge(next.expenses, settled.applied.cashDelta),
       flavorState: settled.flavorState,
     };
     next.log = next.log.concat(
@@ -294,26 +361,32 @@ export function resolveChoice(spec, state, accept) {
   let fate = null;
   let cashDelta = 0;
   let salaryDelta = 0;
+  let spent = 0;
   if (accept) {
-    const applied = applyEffects(cash, salary, space.choice.yes);
+    const mult = multipliers(spec, state);
+    const applied = applyEffects(cash, salary, space.choice.yes, mult);
     cash = applied.cash;
     salary = applied.salary;
     cashDelta += applied.cashDelta;
     salaryDelta += applied.salaryDelta;
+    if (applied.cashDelta < 0) spent -= applied.cashDelta;
     if (space.choice.fate) {
       const drawn = nextUnit(fateState);
       fateState = drawn.state;
       const success = drawn.unit < space.choice.fate.p;
       fate = success ? "success" : "fail";
       const bonus = success ? space.choice.fate.successCash : space.choice.fate.failCash;
-      cash += bonus || 0;
-      cashDelta += bonus || 0;
+      const scaled = scale(bonus || 0, (bonus || 0) < 0 ? mult.expense : mult.income);
+      cash += scaled;
+      cashDelta += scaled;
+      if (scaled < 0) spent -= scaled;
     }
   }
   let next = {
     ...state,
     cash,
     salary,
+    expenses: (state.expenses || 0) + spent,
     fateState,
     phase: space.terminal ? "ended" : "play",
     pendingChoiceId: null,
