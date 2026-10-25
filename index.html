@@ -3,34 +3,87 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LIFE — Stage 1</title>
+    <title>LIFE — Stage 2</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="shell">
-    <header class="top">
+    <div class="dash">
+      <aside class="leaderboard" aria-label="Leaderboard">
+        <p class="eyebrow">Leaderboard</p>
+        <p class="player" id="player-name">One player</p>
+        <div class="lb-body">
+          <svg id="figure" viewBox="0 0 80 120" aria-hidden="true"></svg>
+          <dl class="stats">
+            <div>
+              <dt>Age</dt>
+              <dd id="age">—</dd>
+            </div>
+            <div>
+              <dt>Money</dt>
+              <dd id="cash">—</dd>
+            </div>
+            <div>
+              <dt>Savings</dt>
+              <dd id="savings">—</dd>
+            </div>
+            <div>
+              <dt>Income</dt>
+              <dd id="pay">—</dd>
+            </div>
+            <div>
+              <dt>Expenses</dt>
+              <dd id="expenses">—</dd>
+            </div>
+            <div>
+              <dt>Happiness</dt>
+              <dd id="happy">—</dd>
+            </div>
+          </dl>
+        </div>
+        <p class="lever-readout" id="lever-readout">Stats are public.</p>
+      </aside>
+
       <div class="brand">
-        <p class="eyebrow">Stage 1 · v0.2.2</p>
+        <p class="eyebrow">Stage 2 · v0.3.0</p>
         <h1>Life</h1>
         <p class="dek">A working life, ages 18–68.</p>
+        <div class="switches" role="group" aria-label="Play switches">
+          <label class="switch"><input id="anim" type="checkbox" checked /> Animation</label>
+          <label class="switch"><input id="speed" type="checkbox" /> Speed run</label>
+        </div>
       </div>
-      <dl class="stats">
-        <div>
-          <dt>Age</dt>
-          <dd id="age">—</dd>
-        </div>
-        <div>
-          <dt>Cash</dt>
-          <dd id="cash">—</dd>
-        </div>
-        <div>
-          <dt>Pay</dt>
-          <dd id="pay">—</dd>
-        </div>
-      </dl>
-    </header>
+
+      <aside class="minimap-wrap" aria-label="Minimap">
+        <p class="eyebrow">Minimap</p>
+        <div id="minimap"></div>
+      </aside>
+    </div>
 
     <section class="story" aria-live="polite">
+      <div id="setup">
+        <p class="setup-lead">Split 100 across health, work, and frugality. The split locks when the path starts. One player.</p>
+        <div class="presets">
+          <button type="button" data-preset="health">All health</button>
+          <button type="button" data-preset="work">All work</button>
+          <button type="button" data-preset="frugal">All frugal</button>
+          <button type="button" data-preset="even">Even</button>
+        </div>
+        <div class="shares">
+          <label>Health <input id="share-health" type="number" min="0" max="100" step="1" value="34" /></label>
+          <label>Work <input id="share-work" type="number" min="0" max="100" step="1" value="33" /></label>
+          <label>Frugality <input id="share-frugal" type="number" min="0" max="100" step="1" value="33" /></label>
+        </div>
+        <p id="share-sum"></p>
+        <div class="name-row">
+          <label for="game-name">Game name</label>
+          <input id="game-name" autocomplete="off" />
+          <button id="save" type="button">Save</button>
+          <button id="resume" type="button">Resume</button>
+          <button id="new-game" type="button">New game</button>
+        </div>
+        <p id="save-note"></p>
+      </div>
       <p class="kicker" id="kicker"></p>
       <h2 id="event-title"></h2>
       <p id="event-detail"></p>
