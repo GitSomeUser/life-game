@@ -1,14 +1,11 @@
 {
   "meta": {
     "stage": 1,
-    "version": "0.2.1",
+    "version": "0.2.2",
     "ageStart": 18,
     "ageEnd": 68,
     "yearsPerSpace": 1,
-    "spinner": [
-      1,
-      10
-    ],
+    "spinner": [1, 10],
     "startingCash": 10000,
     "studySalary": 68000,
     "workSalary": 48000,
@@ -35,594 +32,89 @@
     "study": {
       "label": "Study",
       "spaces": [
-        {
-          "id": "study-tuition",
-          "age": 18,
-          "title": "Tuition",
-          "detail": "Four years of a public in-state budget, due up front. The number is the price, not the average loan.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -124000,
-          "adapts": "College path opening. Four years of the published public in-state student budget. No gendered campus."
-        },
-        {
-          "id": "study-nights",
-          "age": 19,
-          "title": "Night shift",
-          "detail": "Labs, a closing shift, then sleep. The account does not move.",
-          "tone": "neutral",
-          "kind": "event",
-          "adapts": "College path year with no payday. Career would already be earning."
-        },
-        {
-          "id": "study-intern",
-          "age": 20,
-          "title": "Paid internship",
-          "detail": "The summer deposit hits the app. Enough for food and a bus pass. Not enough to touch the debt.",
-          "tone": "good",
-          "kind": "event",
-          "cash": 8000,
-          "adapts": "Late college income, smaller than a career payday."
-        },
-        {
-          "id": "study-role",
-          "age": 21,
-          "title": "First role",
-          "detail": "You stop. School is over, and the higher pay starts with this job.",
-          "tone": "good",
-          "kind": "stop",
-          "salarySet": 68000,
-          "adapts": "Job Search stop. Guaranteed, like the classic red space. Higher pay than the work path."
-        }
+        {"id": "study-tuition", "age": 18, "title": "Tuition", "detail": "Four years of a public in-state budget, due up front. The number is the price, not the average loan.", "tone": "bad", "kind": "event", "cash": -124000, "adapts": "College path opening. Four years of the published public in-state student budget. No gendered campus."},
+        {"id": "study-nights", "age": 19, "title": "A year", "detail": "No bill this year. The card stays closed until you land.", "tone": "neutral", "kind": "event", "adapts": "Was the study year with no payday. Now a closed flavor year.", "flavor": true},
+        {"id": "study-intern", "age": 20, "title": "Paid internship", "detail": "The summer deposit hits the app. Enough for food and a bus pass. Not enough to touch the debt.", "tone": "good", "kind": "event", "cash": 8000, "adapts": "Late college income, smaller than a career payday."},
+        {"id": "study-role", "age": 21, "title": "First role", "detail": "You stop. School is over, and the higher pay starts with this job.", "tone": "good", "kind": "stop", "salarySet": 68000, "adapts": "Job Search stop. Guaranteed, like the classic red space. Higher pay than the work path."}
       ]
     },
     "work": {
       "label": "Work",
       "spaces": [
-        {
-          "id": "work-job",
-          "age": 18,
-          "title": "First job",
-          "detail": "You start work now. No degree required. The pay starts today.",
-          "tone": "good",
-          "kind": "event",
-          "salarySet": 48000,
-          "adapts": "Career path opening. Immediate job at the high-school-occupation median. No degree gate."
-        },
-        {
-          "id": "work-payday",
-          "age": 19,
-          "title": "Payday",
-          "detail": "Salary hits the account. The study path does not have this year.",
-          "tone": "good",
-          "kind": "payday",
-          "adapts": "Early Payday the career path reaches sooner."
-        },
-        {
-          "id": "work-tools",
-          "age": 20,
-          "title": "Dead laptop",
-          "detail": "The machine you work on dies. The replacement is on you.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -2500,
-          "adapts": "Early career expense. A dead laptop, in place of a tool kit."
-        },
-        {
-          "id": "work-raise",
-          "age": 21,
-          "title": "Early raise",
-          "detail": "A step toward trade-scale pay, only if you land here. Passing through skips it.",
-          "tone": "good",
-          "kind": "event",
-          "salaryDelta": 10000,
-          "adapts": "From high-school-occupation pay toward the construction-trades median. Land only. Not a stop."
-        }
+        {"id": "work-job", "age": 18, "title": "First job", "detail": "You start work now. No degree required. The pay starts today.", "tone": "good", "kind": "event", "salarySet": 48000, "adapts": "Career path opening. Immediate job at the high-school-occupation median. No degree gate."},
+        {"id": "work-payday", "age": 19, "title": "Payday", "detail": "Salary hits the account. The study path does not have this year.", "tone": "good", "kind": "payday", "adapts": "Early Payday the career path reaches sooner."},
+        {"id": "work-tools", "age": 20, "title": "Dead laptop", "detail": "The machine you work on dies. The replacement is on you.", "tone": "bad", "kind": "event", "cash": -2500, "adapts": "Early career expense. A dead laptop, in place of a tool kit."},
+        {"id": "work-raise", "age": 21, "title": "Early raise", "detail": "A step toward trade-scale pay, only if you land here. Passing through skips it.", "tone": "good", "kind": "event", "salaryDelta": 10000, "adapts": "From high-school-occupation pay toward the construction-trades median. Land only. Not a stop."}
       ]
     },
     "shared": {
       "label": "Shared years",
       "spaces": [
-        {
-          "id": "room",
-          "age": 22,
-          "title": "First lease",
-          "detail": "The application clears. Deposit and the first month are due before the key.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -4000,
-          "adapts": "First household setup after the paths merge."
-        },
-        {
-          "id": "pay-23",
-          "age": 23,
-          "title": "Payday",
-          "detail": "Salary hits the account.",
-          "tone": "good",
-          "kind": "payday",
-          "adapts": "Payday. Collect salary on land or pass."
-        },
-        {
-          "id": "friend",
-          "age": 24,
-          "title": "Scam text",
-          "detail": "A text from your bank. It was not your bank. The payment went through.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -1500,
-          "adapts": "A current mishap. A scam text, settled in cash."
-        },
-        {
-          "id": "refund",
-          "age": 25,
-          "title": "Refund hits",
-          "detail": "The tax app drops a refund you did not plan on.",
-          "tone": "good",
-          "kind": "event",
-          "cash": 3000,
-          "adapts": "Small windfall."
-        },
-        {
-          "id": "partnership",
-          "age": 26,
-          "title": "Partnership",
-          "detail": "You stop. Two people, one household. The party is small and still costs.",
-          "tone": "neutral",
-          "kind": "stop",
-          "cash": -8000,
-          "adapts": "Get Married stop. No spouse gender, no pink or blue pegs."
-        },
-        {
-          "id": "gifts",
-          "age": 27,
-          "title": "Group transfers",
-          "detail": "People send what they can. The payment apps light up, and someone still mails a pan.",
-          "tone": "good",
-          "kind": "event",
-          "cash": 2000,
-          "adapts": "Honeymoon beat, recast as gifts to the household."
-        },
-        {
-          "id": "pay-28",
-          "age": 28,
-          "title": "Payday",
-          "detail": "Salary hits the account.",
-          "tone": "good",
-          "kind": "payday",
-          "adapts": "Payday. Collect salary on land or pass."
-        },
-        {
-          "id": "child",
-          "age": 29,
-          "title": "A child arrives",
-          "detail": "A child joins the household. The spare room is no longer spare, and the bills start.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -12000,
-          "adapts": "Baby space. No boy or girl."
-        },
-        {
-          "id": "course",
-          "age": 30,
-          "title": "Online course",
-          "detail": "Nights on a laptop, a fee, and a raise if you finish.",
-          "tone": "neutral",
-          "kind": "choice",
-          "adapts": "Night school. Optional, like a blue space.",
-          "choice": {
-            "prompt": "Pay $4,000 for an online course that raises your pay by $4,000?",
-            "yesLabel": "Take it",
-            "noLabel": "Skip it",
-            "yes": {
-              "cash": -4000,
-              "salaryDelta": 4000
-            },
-            "no": {}
-          }
-        },
-        {
-          "id": "repair",
-          "age": 31,
-          "title": "Stolen card",
-          "detail": "The card number is out. Charges land before you freeze it.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -2200,
-          "adapts": "Lost or stolen card. Charges before the freeze. Separate from the lost phone."
-        },
-        {
-          "id": "bonus",
-          "age": 32,
-          "title": "Bonus deposit",
-          "detail": "A little extra hits the account at the end of the year.",
-          "tone": "good",
-          "kind": "event",
-          "cash": 5000,
-          "adapts": "Bonus windfall."
-        },
-        {
-          "id": "pay-33",
-          "age": 33,
-          "title": "Payday",
-          "detail": "Salary hits the account.",
-          "tone": "good",
-          "kind": "payday",
-          "adapts": "Payday. Collect salary on land or pass."
-        },
-        {
-          "id": "home",
-          "age": 34,
-          "title": "A home",
-          "detail": "You stop. This is the down payment, ten percent, not the whole price.",
-          "tone": "bad",
-          "kind": "stop",
-          "cash": -42000,
-          "adapts": "Buy a House stop. A first-time down payment, not the full sale price and not a deed deck."
-        },
-        {
-          "id": "housewarming",
-          "age": 35,
-          "title": "Housewarming",
-          "detail": "People show up once. A few transfers cover a chair.",
-          "tone": "good",
-          "kind": "event",
-          "cash": 2000,
-          "adapts": "After the house, a small return."
-        },
-        {
-          "id": "twins",
-          "age": 36,
-          "title": "Twins arrive",
-          "detail": "Two children join the household at once.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -22000,
-          "adapts": "Twins space. No sexes assigned."
-        },
-        {
-          "id": "quiet-37",
-          "age": 37,
-          "title": "A quiet year",
-          "detail": "Work, meals, the same walk home. The ledger rests.",
-          "tone": "neutral",
-          "kind": "event",
-          "adapts": "Breathing room between events. Stands in for a blank orange space."
-        },
-        {
-          "id": "pay-38",
-          "age": 38,
-          "title": "Payday",
-          "detail": "Salary hits the account.",
-          "tone": "good",
-          "kind": "payday",
-          "adapts": "Payday. Collect salary on land or pass."
-        },
-        {
-          "id": "taxes",
-          "age": 39,
-          "title": "Stolen identity",
-          "detail": "Someone opens accounts in your name. The money is gone before the bank sorts it out.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -8000,
-          "adapts": "Serious mishap. Stolen online identity. An $8,000 hit."
-        },
-        {
-          "id": "promotion",
-          "age": 40,
-          "title": "Promotion",
-          "detail": "The new title sticks. Pay moves, if you land here.",
-          "tone": "good",
-          "kind": "event",
-          "salaryDelta": 8000,
-          "adapts": "Midlife raise. Land only."
-        },
-        {
-          "id": "reunion",
-          "age": 41,
-          "title": "Group dinner",
-          "detail": "The chat picks a place. You pay for the table.",
-          "tone": "neutral",
-          "kind": "event",
-          "cash": -2000,
-          "adapts": "Gathering without assigning who is whose."
-        },
-        {
-          "id": "market",
-          "age": 42,
-          "title": "Investing app",
-          "detail": "A tip in the app, a stake, and an outcome fixed by the seed.",
-          "tone": "neutral",
-          "kind": "choice",
-          "adapts": "Stock space. Optional. Outcome is seeded, not a hidden shuffle.",
-          "choice": {
-            "prompt": "Put $10,000 in the investing app? Even odds, from the seed. Success pays $24,000 back, a $14,000 gain. Otherwise the $10,000 is lost.",
-            "yesLabel": "Invest",
-            "noLabel": "Hold cash",
-            "yes": {
-              "cash": -10000
-            },
-            "no": {},
-            "fate": {
-              "p": 0.5,
-              "successCash": 24000,
-              "failCash": 0
-            }
-          }
-        },
-        {
-          "id": "pay-43",
-          "age": 43,
-          "title": "Payday",
-          "detail": "Salary hits the account.",
-          "tone": "good",
-          "kind": "payday",
-          "adapts": "Payday. Collect salary on land or pass."
-        },
-        {
-          "id": "painting",
-          "age": 44,
-          "title": "Sold online",
-          "detail": "An old setup finds a buyer. The payout clears.",
-          "tone": "good",
-          "kind": "event",
-          "cash": 5000,
-          "adapts": "Marketplace sale, in place of selling a painting."
-        },
-        {
-          "id": "clinic",
-          "age": 45,
-          "title": "Subscription trap",
-          "detail": "The free trials renewed. So did the annual plan you forgot.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -2800,
-          "adapts": "A stack of subscriptions, in place of a small clinic bill. The later medical year still carries the health cost."
-        },
-        {
-          "id": "move",
-          "age": 46,
-          "title": "Another city",
-          "detail": "The work would pay more somewhere else. Moving is not free.",
-          "tone": "neutral",
-          "kind": "choice",
-          "adapts": "Optional life change, in the spirit of a blue space.",
-          "choice": {
-            "prompt": "Spend $8,000 to move for a $6,000 raise?",
-            "yesLabel": "Move",
-            "noLabel": "Stay",
-            "yes": {
-              "cash": -8000,
-              "salaryDelta": 6000
-            },
-            "no": {}
-          }
-        },
-        {
-          "id": "wallet",
-          "age": 47,
-          "title": "Lost phone",
-          "detail": "The phone is gone. Replacing it hits the account. The card is a different year.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -1200,
-          "adapts": "Lost phone. The device, separate from the stolen card."
-        },
-        {
-          "id": "pay-48",
-          "age": 48,
-          "title": "Payday",
-          "detail": "Salary hits the account.",
-          "tone": "good",
-          "kind": "payday",
-          "adapts": "Payday. Collect salary on land or pass."
-        },
-        {
-          "id": "lessons",
-          "age": 49,
-          "title": "Activity fees",
-          "detail": "The club, the app, the season. The household pays it.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -4500,
-          "adapts": "Child-related cost without boy/girl framing."
-        },
-        {
-          "id": "quiet-50",
-          "age": 50,
-          "title": "Nothing posted",
-          "detail": "The same keys, the same hour. The feed is quiet and so is the account.",
-          "tone": "neutral",
-          "kind": "event",
-          "adapts": "Quiet year."
-        },
-        {
-          "id": "cola",
-          "age": 51,
-          "title": "Pay bump",
-          "detail": "A cost-of-living raise, if this is the year you land.",
-          "tone": "good",
-          "kind": "event",
-          "salaryDelta": 4000,
-          "adapts": "Small raise. Land only."
-        },
-        {
-          "id": "venture",
-          "age": 52,
-          "title": "Side hustle",
-          "detail": "Nights and a stake. The seed already knows how it ends.",
-          "tone": "neutral",
-          "kind": "choice",
-          "adapts": "Risky business. Optional. Seeded odds.",
-          "choice": {
-            "prompt": "Stake $10,000 on a side hustle? A 3-in-5 chance, from the seed, pays $24,000 back, a $14,000 gain. Otherwise the $10,000 is lost.",
-            "yesLabel": "Stake it",
-            "noLabel": "Decline",
-            "yes": {
-              "cash": -10000
-            },
-            "no": {},
-            "fate": {
-              "p": 0.6,
-              "successCash": 24000,
-              "failCash": 0
-            }
-          }
-        },
-        {
-          "id": "pay-53",
-          "age": 53,
-          "title": "Payday",
-          "detail": "Salary hits the account.",
-          "tone": "good",
-          "kind": "payday",
-          "adapts": "Payday. Collect salary on land or pass."
-        },
-        {
-          "id": "storm",
-          "age": 54,
-          "title": "Pay-later bill",
-          "detail": "The buy-now-pay-later plans come due in the same month.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -4000,
-          "adapts": "Buy now, pay later. A household-scale bill, in place of storm damage."
-        },
-        {
-          "id": "recognition",
-          "age": 55,
-          "title": "Recognition",
-          "detail": "The work gets seen. Pay moves, if you land here.",
-          "tone": "good",
-          "kind": "event",
-          "salaryDelta": 6000,
-          "adapts": "Late-career raise. Land only."
-        },
-        {
-          "id": "quiet-56",
-          "age": 56,
-          "title": "A quiet year",
-          "detail": "No headline. The household keeps its shape.",
-          "tone": "neutral",
-          "kind": "event",
-          "adapts": "Quiet year."
-        },
-        {
-          "id": "gift",
-          "age": 57,
-          "title": "Family transfer",
-          "detail": "Money from someone who kept their word. No name on it.",
-          "tone": "good",
-          "kind": "event",
-          "cash": 4000,
-          "adapts": "Inheritance windfall, gender-neutral."
-        },
-        {
-          "id": "pay-58",
-          "age": 58,
-          "title": "Payday",
-          "detail": "Salary hits the account.",
-          "tone": "good",
-          "kind": "payday",
-          "adapts": "Payday. Collect salary on land or pass."
-        },
-        {
-          "id": "parent",
-          "age": 59,
-          "title": "Support a parent",
-          "detail": "A parent needs a year of help. You send it.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -5000,
-          "adapts": "Family support. No mother/father assignment."
-        },
-        {
-          "id": "festival",
-          "age": 60,
-          "title": "The group tab",
-          "detail": "Lights, a table, and the check lands on you.",
-          "tone": "neutral",
-          "kind": "event",
-          "cash": -1200,
-          "adapts": "Community night, as a small cost."
-        },
-        {
-          "id": "quiet-61",
-          "age": 61,
-          "title": "A quiet year",
-          "detail": "The board is still. So is the account.",
-          "tone": "neutral",
-          "kind": "event",
-          "adapts": "Quiet year."
-        },
-        {
-          "id": "contract",
-          "age": 62,
-          "title": "Gig paid",
-          "detail": "The invoice clears. The payout hits.",
-          "tone": "good",
-          "kind": "event",
-          "cash": 6000,
-          "adapts": "Late windfall."
-        },
-        {
-          "id": "pay-63",
-          "age": 63,
-          "title": "Payday",
-          "detail": "Salary hits the account.",
-          "tone": "good",
-          "kind": "payday",
-          "adapts": "Payday near the classic early-retirement age. No early retirement choice in this version."
-        },
-        {
-          "id": "medical",
-          "age": 64,
-          "title": "A medical year",
-          "detail": "The portal bill, the deductible, and you are still on the track.",
-          "tone": "bad",
-          "kind": "event",
-          "cash": -6000,
-          "adapts": "Health cost. Not a death sliver."
-        },
-        {
-          "id": "quiet-65",
-          "age": 65,
-          "title": "A quiet year",
-          "detail": "Morning, work, evening. Mark the year and go on.",
-          "tone": "neutral",
-          "kind": "event",
-          "adapts": "Quiet year."
-        },
-        {
-          "id": "farewell",
-          "age": 66,
-          "title": "Send-off fund",
-          "detail": "A colleague leaves. The chat splits the gift, and your share is due.",
-          "tone": "neutral",
-          "kind": "event",
-          "cash": -1500,
-          "adapts": "Workplace life event."
-        },
-        {
-          "id": "pay-67",
-          "age": 67,
-          "title": "Payday",
-          "detail": "Salary hits the account. One year of the track remains.",
-          "tone": "good",
-          "kind": "payday",
-          "adapts": "Last Payday before the gate."
-        },
-        {
-          "id": "gate",
-          "age": 68,
-          "title": "Retirement gate",
-          "detail": "You stop. Working life ends at 68. This version ends with it.",
-          "tone": "neutral",
-          "kind": "stop",
-          "terminal": true,
-          "adapts": "Retire stop. No Millionaire Estates, no annuity, no decumulation."
-        }
+        {"id": "room", "age": 22, "title": "First lease", "detail": "The application clears. Deposit and the first month are due before the key.", "tone": "bad", "kind": "event", "cash": -4000, "adapts": "First household setup after the paths merge."},
+        {"id": "pay-23", "age": 23, "title": "Payday", "detail": "Salary hits the account.", "tone": "good", "kind": "payday", "adapts": "Payday. Collect salary on land or pass."},
+        {"id": "friend", "age": 24, "title": "Scam text", "detail": "A text from your bank. It was not your bank. The payment went through.", "tone": "bad", "kind": "event", "cash": -1500, "adapts": "A current mishap. A scam text, settled in cash."},
+        {"id": "refund", "age": 25, "title": "Refund hits", "detail": "The tax app drops a refund you did not plan on.", "tone": "good", "kind": "event", "cash": 3000, "adapts": "Small windfall."},
+        {"id": "partnership", "age": 26, "title": "Partnership", "detail": "You stop. Two people, one household. The party is small and still costs.", "tone": "neutral", "kind": "stop", "cash": -8000, "adapts": "Get Married stop. No spouse gender, no pink or blue pegs."},
+        {"id": "gifts", "age": 27, "title": "Group transfers", "detail": "People send what they can. The payment apps light up, and someone still mails a pan.", "tone": "good", "kind": "event", "cash": 2000, "adapts": "Honeymoon beat, recast as gifts to the household."},
+        {"id": "pay-28", "age": 28, "title": "Payday", "detail": "Salary hits the account.", "tone": "good", "kind": "payday", "adapts": "Payday. Collect salary on land or pass."},
+        {"id": "child", "age": 29, "title": "A child arrives", "detail": "A child joins the household. The spare room is no longer spare, and the bills start.", "tone": "bad", "kind": "event", "cash": -12000, "adapts": "Baby space. No boy or girl."},
+        {"id": "course", "age": 30, "title": "Online course", "detail": "Nights on a laptop, a fee, and a raise if you finish.", "tone": "neutral", "kind": "choice", "adapts": "Night school. Optional, like a blue space.", "choice": {"prompt": "Pay $4,000 for an online course that raises your pay by $4,000?", "yesLabel": "Take it", "noLabel": "Skip it", "yes": {"cash": -4000, "salaryDelta": 4000}, "no": {}}},
+        {"id": "repair", "age": 31, "title": "Stolen card", "detail": "The card number is out. Charges land before you freeze it.", "tone": "bad", "kind": "event", "cash": -2200, "adapts": "Lost or stolen card. Charges before the freeze. Separate from the lost phone."},
+        {"id": "bonus", "age": 32, "title": "Bonus deposit", "detail": "A little extra hits the account at the end of the year.", "tone": "good", "kind": "event", "cash": 5000, "adapts": "Bonus windfall."},
+        {"id": "pay-33", "age": 33, "title": "Payday", "detail": "Salary hits the account.", "tone": "good", "kind": "payday", "adapts": "Payday. Collect salary on land or pass."},
+        {"id": "home", "age": 34, "title": "A home", "detail": "You stop. This is the down payment, ten percent, not the whole price.", "tone": "bad", "kind": "stop", "cash": -42000, "adapts": "Buy a House stop. A first-time down payment, not the full sale price and not a deed deck."},
+        {"id": "housewarming", "age": 35, "title": "Housewarming", "detail": "People show up once. A few transfers cover a chair.", "tone": "good", "kind": "event", "cash": 2000, "adapts": "After the house, a small return."},
+        {"id": "twins", "age": 36, "title": "Twins arrive", "detail": "Two children join the household at once.", "tone": "bad", "kind": "event", "cash": -22000, "adapts": "Twins space. No sexes assigned."},
+        {"id": "quiet-37", "age": 37, "title": "A year", "detail": "No bill this year. The card stays closed until you land.", "tone": "neutral", "kind": "event", "adapts": "Breathing room. A flavor card, no cash.", "flavor": true},
+        {"id": "pay-38", "age": 38, "title": "Payday", "detail": "Salary hits the account.", "tone": "good", "kind": "payday", "adapts": "Payday. Collect salary on land or pass."},
+        {"id": "taxes", "age": 39, "title": "Stolen identity", "detail": "Someone opens accounts in your name. The money is gone before the bank sorts it out.", "tone": "bad", "kind": "event", "cash": -8000, "adapts": "Serious mishap. Stolen online identity. An $8,000 hit."},
+        {"id": "promotion", "age": 40, "title": "Promotion", "detail": "The new title sticks. Pay moves, if you land here.", "tone": "good", "kind": "event", "salaryDelta": 8000, "adapts": "Midlife raise. Land only."},
+        {"id": "reunion", "age": 41, "title": "A year", "detail": "No bill this year. The card stays closed until you land.", "tone": "neutral", "kind": "event", "adapts": "Was a group dinner with a small cost. The cost is zero. A flavor card.", "flavor": true},
+        {"id": "market", "age": 42, "title": "Investing app", "detail": "A tip in the app, a stake, and an outcome fixed by the seed.", "tone": "neutral", "kind": "choice", "adapts": "Stock space. Optional. Outcome is seeded, not a hidden shuffle.", "choice": {"prompt": "Put $10,000 in the investing app? Even odds, from the seed. Success pays $24,000 back, a $14,000 gain. Otherwise the $10,000 is lost.", "yesLabel": "Invest", "noLabel": "Hold cash", "yes": {"cash": -10000}, "no": {}, "fate": {"p": 0.5, "successCash": 24000, "failCash": 0}}},
+        {"id": "pay-43", "age": 43, "title": "Payday", "detail": "Salary hits the account.", "tone": "good", "kind": "payday", "adapts": "Payday. Collect salary on land or pass."},
+        {"id": "painting", "age": 44, "title": "Sold online", "detail": "An old setup finds a buyer. The payout clears.", "tone": "good", "kind": "event", "cash": 5000, "adapts": "Marketplace sale, in place of selling a painting."},
+        {"id": "clinic", "age": 45, "title": "Subscription trap", "detail": "The free trials renewed. So did the annual plan you forgot.", "tone": "bad", "kind": "event", "cash": -2800, "adapts": "A stack of subscriptions, in place of a small clinic bill. The later medical year still carries the health cost."},
+        {"id": "move", "age": 46, "title": "Another city", "detail": "The work would pay more somewhere else. Moving is not free.", "tone": "neutral", "kind": "choice", "adapts": "Optional life change, in the spirit of a blue space.", "choice": {"prompt": "Spend $8,000 to move for a $6,000 raise?", "yesLabel": "Move", "noLabel": "Stay", "yes": {"cash": -8000, "salaryDelta": 6000}, "no": {}}},
+        {"id": "wallet", "age": 47, "title": "Lost phone", "detail": "The phone is gone. Replacing it hits the account. The card is a different year.", "tone": "bad", "kind": "event", "cash": -1200, "adapts": "Lost phone. The device, separate from the stolen card."},
+        {"id": "pay-48", "age": 48, "title": "Payday", "detail": "Salary hits the account.", "tone": "good", "kind": "payday", "adapts": "Payday. Collect salary on land or pass."},
+        {"id": "lessons", "age": 49, "title": "Activity fees", "detail": "The club, the app, the season. The household pays it.", "tone": "bad", "kind": "event", "cash": -4500, "adapts": "Child-related cost without boy/girl framing."},
+        {"id": "quiet-50", "age": 50, "title": "A year", "detail": "No bill this year. The card stays closed until you land.", "tone": "neutral", "kind": "event", "adapts": "Was a quiet year. A flavor card, no cash.", "flavor": true},
+        {"id": "cola", "age": 51, "title": "Pay bump", "detail": "A cost-of-living raise, if this is the year you land.", "tone": "good", "kind": "event", "salaryDelta": 4000, "adapts": "Small raise. Land only."},
+        {"id": "venture", "age": 52, "title": "Side hustle", "detail": "Nights and a stake. The seed already knows how it ends.", "tone": "neutral", "kind": "choice", "adapts": "Risky business. Optional. Seeded odds.", "choice": {"prompt": "Stake $10,000 on a side hustle? A 3-in-5 chance, from the seed, pays $24,000 back, a $14,000 gain. Otherwise the $10,000 is lost.", "yesLabel": "Stake it", "noLabel": "Decline", "yes": {"cash": -10000}, "no": {}, "fate": {"p": 0.6, "successCash": 24000, "failCash": 0}}},
+        {"id": "pay-53", "age": 53, "title": "Payday", "detail": "Salary hits the account.", "tone": "good", "kind": "payday", "adapts": "Payday. Collect salary on land or pass."},
+        {"id": "storm", "age": 54, "title": "Pay-later bill", "detail": "The buy-now-pay-later plans come due in the same month.", "tone": "bad", "kind": "event", "cash": -4000, "adapts": "Buy now, pay later. A household-scale bill, in place of storm damage."},
+        {"id": "recognition", "age": 55, "title": "Recognition", "detail": "The work gets seen. Pay moves, if you land here.", "tone": "good", "kind": "event", "salaryDelta": 6000, "adapts": "Late-career raise. Land only."},
+        {"id": "quiet-56", "age": 56, "title": "A year", "detail": "No bill this year. The card stays closed until you land.", "tone": "neutral", "kind": "event", "adapts": "Breathing room. A flavor card, no cash.", "flavor": true},
+        {"id": "gift", "age": 57, "title": "Family transfer", "detail": "Money from someone who kept their word. No name on it.", "tone": "good", "kind": "event", "cash": 4000, "adapts": "Inheritance windfall, gender-neutral."},
+        {"id": "pay-58", "age": 58, "title": "Payday", "detail": "Salary hits the account.", "tone": "good", "kind": "payday", "adapts": "Payday. Collect salary on land or pass."},
+        {"id": "parent", "age": 59, "title": "Support a parent", "detail": "A parent needs a year of help. You send it.", "tone": "bad", "kind": "event", "cash": -5000, "adapts": "Family support. No mother/father assignment."},
+        {"id": "festival", "age": 60, "title": "A year", "detail": "No bill this year. The card stays closed until you land.", "tone": "neutral", "kind": "event", "adapts": "Was the group tab with a small cost. The cost is zero. A flavor card.", "flavor": true},
+        {"id": "quiet-61", "age": 61, "title": "A year", "detail": "No bill this year. The card stays closed until you land.", "tone": "neutral", "kind": "event", "adapts": "Breathing room. A flavor card, no cash.", "flavor": true},
+        {"id": "contract", "age": 62, "title": "Gig paid", "detail": "The invoice clears. The payout hits.", "tone": "good", "kind": "event", "cash": 6000, "adapts": "Late windfall."},
+        {"id": "pay-63", "age": 63, "title": "Payday", "detail": "Salary hits the account.", "tone": "good", "kind": "payday", "adapts": "Payday near the classic early-retirement age. No early retirement choice in this version."},
+        {"id": "medical", "age": 64, "title": "A medical year", "detail": "The portal bill, the deductible, and you are still on the track.", "tone": "bad", "kind": "event", "cash": -6000, "adapts": "Health cost. Not a death sliver."},
+        {"id": "quiet-65", "age": 65, "title": "A year", "detail": "No bill this year. The card stays closed until you land.", "tone": "neutral", "kind": "event", "adapts": "Breathing room. A flavor card, no cash.", "flavor": true},
+        {"id": "farewell", "age": 66, "title": "A year", "detail": "No bill this year. The card stays closed until you land.", "tone": "neutral", "kind": "event", "adapts": "Was a send-off with a small cost. The cost is zero. A flavor card.", "flavor": true},
+        {"id": "pay-67", "age": 67, "title": "Payday", "detail": "Salary hits the account. One year of the track remains.", "tone": "good", "kind": "payday", "adapts": "Last Payday before the gate."},
+        {"id": "gate", "age": 68, "title": "Retirement gate", "detail": "You stop. Working life ends at 68. This version ends with it.", "tone": "neutral", "kind": "stop", "terminal": true, "adapts": "Retire stop. No Millionaire Estates, no annuity, no decumulation."}
       ]
     }
-  }
+  },
+  "flavorCards": [
+    {"id": "cat-loaf", "mood": "cute-funny", "caption": "The cat became a loaf on the warm router.", "still": "art/flavor/cat-loaf.svg", "animation": null},
+    {"id": "sock-dog", "mood": "cute-funny", "caption": "The dog is wearing one sock and will not explain.", "still": "art/flavor/sock-dog.svg", "animation": null},
+    {"id": "fry-bow", "mood": "cute-funny", "caption": "A pigeon took one fry and bowed.", "still": "art/flavor/fry-bow.svg", "animation": null},
+    {"id": "late-balloon", "mood": "funny-sad", "caption": "The balloon is still on the mailbox. The party was yesterday.", "still": "art/flavor/late-balloon.svg", "animation": null},
+    {"id": "goldfish-film", "mood": "funny-sad", "caption": "The goldfish watched the whole film and forgot it.", "still": "art/flavor/goldfish-film.svg", "animation": null},
+    {"id": "trophy-sock", "mood": "funny-sad", "caption": "The little trophy is holding a single sock.", "still": "art/flavor/trophy-sock.svg", "animation": null},
+    {"id": "polite-closet", "mood": "pg-scary", "caption": "Two eyes in the closet blinked and said excuse me.", "still": "art/flavor/polite-closet.svg", "animation": null},
+    {"id": "wagging-shadow", "mood": "pg-scary", "caption": "Your shadow grew a tail and wagged.", "still": "art/flavor/wagging-shadow.svg", "animation": null},
+    {"id": "fridge-song", "mood": "pg-scary", "caption": "The fridge hummed a lullaby. It was trying to help.", "still": "art/flavor/fridge-song.svg", "animation": null},
+    {"id": "leaf-parade", "mood": "happy", "caption": "The neighborhood dog led a parade of leaves.", "still": "art/flavor/leaf-parade.svg", "animation": null},
+    {"id": "ball-in", "mood": "happy", "caption": "The ball found the net. The bench made a noise.", "still": "art/flavor/ball-in.svg", "animation": null},
+    {"id": "aisle-song", "mood": "happy", "caption": "Your song came on between the cans.", "still": "art/flavor/aisle-song.svg", "animation": null},
+    {"id": "popcorn-up", "mood": "exciting", "caption": "Overtime. The popcorn hit the ceiling.", "still": "art/flavor/popcorn-up.svg", "animation": null},
+    {"id": "roof-speck", "mood": "exciting", "caption": "A bright speck crossed the roof. The chat lost its mind.", "still": "art/flavor/roof-speck.svg", "animation": null},
+    {"id": "buzzer-ball", "mood": "exciting", "caption": "The ball left as the buzzer sang.", "still": "art/flavor/buzzer-ball.svg", "animation": null}
+  ]
 }
