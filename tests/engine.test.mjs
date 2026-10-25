@@ -6,6 +6,7 @@ import {
   choosePath,
   createGame,
   currentSpace,
+  portraitStats,
   resolveChoice,
   spin,
   toneCounts,
@@ -195,6 +196,76 @@ test("no-stakes years draw a flavor card and leave cash alone", () => {
   }
   assert.deepEqual(otherAnswers, declinedIds);
   assert.ok(otherAnswers.length > 0);
+});
+
+test("levers scale income and expenses and leave the spin stream alone", () => {
+  const health = { health: 100, work: 0, frugality: 0 };
+  const work = { health: 0, work: 100, frugality: 0 };
+  const frugal = { health: 0, work: 0, frugality: 100 };
+  let studied = choosePath(spec, createGame(spec, 7, health), "study");
+  assert.equal(studied.cash, spec.meta.startingCash + Math.round(-124000 * 0.9));
+  assert.equal(studied.expenses, Math.round(124000 * 0.9));
+  studied = applyRoll(spec, studied, 10);
+  assert.equal(studied.salary, Math.round(68000 * 1.2));
+  assert.equal(portraitStats(spec, studied).happiness, 100);
+  assert.equal(portraitStats(spec, studied).incomeBps, 12000);
+  assert.equal(portraitStats(spec, studied).expenseBps, 9000);
+
+  let hired = choosePath(spec, createGame(spec, 3, work), "work");
+  assert.equal(hired.salary, Math.round(48000 * 1.3));
+  hired = applyRoll(spec, hired, 1);
+  assert.equal(hired.cash, spec.meta.startingCash + hired.salary);
+  assert.equal(hired.expenses, 0);
+  hired = applyRoll(spec, hired, 2);
+  assert.equal(hired.salary, Math.round(48000 * 1.3) + Math.round(10000 * 1.3));
+
+  const pay = 48000;
+  const party = Math.round(-8000 * 0.7);
+  let plain = choosePath(spec, createGame(spec, 1, frugal), "work");
+  plain = applyRoll(spec, plain, 10);
+  assert.equal(currentSpace(spec, plain).id, "partnership");
+  assert.equal(plain.salary, pay);
+  assert.equal(plain.cash, spec.meta.startingCash + pay + pay + party);
+  assert.equal(plain.expenses, -party);
+  assert.equal(portraitStats(spec, plain).savings, plain.cash);
+  assert.equal(portraitStats(spec, plain).happiness, 90);
+
+  assert.throws(() => createGame(spec, 1, { health: 50, work: 50, frugality: 50 }));
+  const bare = choosePath(spec, createGame(spec, 7), "study");
+  assert.equal(bare.cash, spec.meta.startingCash - 124000);
+  assert.equal(bare.levers, null);
+
+  const flavorIds = (levers) => {
+    let state = choosePath(spec, createGame(spec, 11, levers), "work");
+    const ids = [];
+    let guard = 0;
+    while (state.phase !== "ended" && guard++ < 80) {
+      state = state.phase === "choice" ? resolveChoice(spec, state, false) : spin(spec, state);
+      if (state.log.at(-1).flavor) ids.push(state.log.at(-1).flavor.id);
+    }
+    return ids;
+  };
+  assert.deepEqual(flavorIds(work), flavorIds(null));
+
+  const reachMarket = (levers) => {
+    let state = choosePath(spec, createGame(spec, 99, levers), "work");
+    let guard = 0;
+    while (currentSpace(spec, state).id !== "market" && guard++ < 40) {
+      state = state.phase === "choice" ? resolveChoice(spec, state, false) : applyRoll(spec, state, 1);
+    }
+    return state;
+  };
+  const waiting = reachMarket(work);
+  const unscaled = resolveChoice(spec, reachMarket(null), true);
+  const scaled = resolveChoice(spec, waiting, true);
+  assert.equal(unscaled.log.at(-1).fate, scaled.log.at(-1).fate);
+  const stake = Math.round(10000 * 1.1);
+  if (scaled.log.at(-1).fate === "success") {
+    assert.equal(scaled.log.at(-1).cashDelta, -stake + Math.round(24000 * 1.3));
+  } else {
+    assert.equal(scaled.log.at(-1).cashDelta, -stake);
+  }
+  assert.equal(scaled.expenses, waiting.expenses + stake);
 });
 
 test("tone mix is recorded for a later matching phase", () => {
