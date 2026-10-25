@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LIFE — Stage 1</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+    <header class="top">
+      <div class="brand">
+        <p class="eyebrow">Stage 1 · v0.1.0</p>
+        <h1>Life</h1>
+        <p class="dek">A working life, ages 18–68.</p>
+      </div>
+      <dl class="stats">
+        <div>
+          <dt>Age</dt>
+          <dd id="age">—</dd>
+        </div>
+        <div>
+          <dt>Cash</dt>
+          <dd id="cash">—</dd>
+        </div>
+        <div>
+          <dt>Pay</dt>
+          <dd id="pay">—</dd>
+        </div>
+      </dl>
+    </header>
+
+    <section class="story" aria-live="polite">
+      <p class="kicker" id="kicker"></p>
+      <h2 id="event-title"></h2>
+      <p id="event-detail"></p>
+      <div id="choices"></div>
+    </section>
+
+    <div class="scroll">
+    <div class="board-scroll">
+      <div id="board"></div>
+    </div>
+
+    <details class="log-wrap" open>
+      <summary>Decision log</summary>
+      <ol id="log"></ol>
+    </details>
+    <p class="fine" id="fine"></p>
+    </div>
+
+    <div class="dock">
+      <div class="wheel-wrap">
+        <svg id="wheel" viewBox="0 0 200 200" aria-hidden="true"></svg>
+        <button id="act" type="button">Spin</button>
+      </div>
+      <div class="seed-row">
+        <label for="seed">Seed</label>
+        <input id="seed" inputmode="numeric" autocomplete="off" />
+        <button id="copy" type="button">Copy log</button>
+        <p id="roll-readout"></p>
+      </div>
+    </div>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
