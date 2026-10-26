@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LIFE — Stage 2</title>
+    <title>Life$pan</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -13,35 +13,31 @@
         <p class="eyebrow">Leaderboard</p>
         <p class="player" id="player-name">One player</p>
         <div class="lb-body">
-          <svg id="figure" viewBox="0 0 80 120" aria-hidden="true"></svg>
+          <svg id="figure" viewBox="0 0 160 130" aria-hidden="true"></svg>
           <dl class="stats">
             <div>
               <dt>Age</dt>
               <dd id="age">—</dd>
             </div>
             <div>
-              <dt>Money</dt>
-              <dd id="cash">—</dd>
+              <dt>Income</dt>
+              <dd id="pay">—</dd>
+            </div>
+            <div>
+              <dt>Expenses</dt>
+              <dd id="expenses">—</dd>
             </div>
             <div>
               <dt>Savings</dt>
               <dd id="savings">—</dd>
             </div>
             <div>
-              <dt>Income</dt>
-              <dd id="pay">—</dd>
-            </div>
-            <div>
-              <dt>Monthly</dt>
-              <dd id="expenses">—</dd>
-            </div>
-            <div>
-              <dt>Death</dt>
-              <dd id="death-chance">—</dd>
-            </div>
-            <div>
               <dt>Years left</dt>
               <dd id="years">—</dd>
+            </div>
+            <div class="death-stat">
+              <dt>Death</dt>
+              <dd id="death-chance">—</dd>
             </div>
           </dl>
         </div>
@@ -58,8 +54,8 @@
       </aside>
 
       <div class="brand">
-        <p class="eyebrow">Stage 2 · v0.4.0</p>
-        <h1>Life</h1>
+        <p class="eyebrow">Stage 2 · v0.5.0</p>
+        <h1>Life$pan</h1>
         <p class="dek">A working life, ages 18–68.</p>
         <div class="switches" role="group" aria-label="Play switches">
           <label class="switch"><input id="anim" type="checkbox" checked /> Animation</label>
