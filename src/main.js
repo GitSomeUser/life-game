@@ -19,7 +19,6 @@ const flavorCardEl = document.querySelector("#flavor-card");
 const flavorStillEl = document.querySelector("#flavor-still");
 const flavorCaptionEl = document.querySelector("#flavor-caption");
 const ageEl = document.querySelector("#age");
-const cashEl = document.querySelector("#cash");
 const savingsEl = document.querySelector("#savings");
 const payEl = document.querySelector("#pay");
 const expensesEl = document.querySelector("#expenses");
@@ -70,7 +69,14 @@ const CORNERS = {
 };
 
 const params = new URLSearchParams(location.search);
-seedInput.value = params.get("seed") || String(Math.floor(Math.random() * 1_000_000_000));
+
+function mintSeed() {
+  const time = Date.now() >>> 0;
+  const noise = Math.floor(Math.random() * 4294967296) >>> 0;
+  return (Math.imul(time ^ 0x9e3779b1, 0x85ebca6b) ^ noise) >>> 0 || 1;
+}
+
+seedInput.value = params.get("seed") ?? String(mintSeed());
 if (params.get("name")) gameNameInput.value = params.get("name");
 if (params.get("anim") === "0") animEl.checked = false;
 if (params.get("speed") === "1") speedEl.checked = true;
@@ -89,7 +95,7 @@ function pointFromQuery() {
 }
 
 function money(n) {
-  const sign = n < 0 ? "−" : "";
+  const sign = n < 0 ? "\u2212" : "";
   return `${sign}$${Math.abs(n).toLocaleString("en-US")}`;
 }
 
@@ -186,6 +192,13 @@ function gameName() {
   return gameNameInput.value.trim();
 }
 
+function savedName() {
+  const typed = gameName();
+  const seed = String(state?.seed ?? seedNumber());
+  if (!typed) return "";
+  return typed.endsWith(`-${seed}`) ? typed : `${typed}-${seed}`;
+}
+
 function startPath(pathName) {
   if (!gameName()) return;
   const seed = seedNumber();
@@ -212,7 +225,7 @@ function logLine(entry) {
   if (entry.t === "spin") {
     const stop = entry.discarded ? `, stop, ${entry.discarded} unused` : "";
     const pay = entry.paydayCash ? `, payday ${money(entry.paydayCash)}` : "";
-    return `${entry.n}. Spin ${entry.roll}. ${entry.fromAge} → ${entry.toAge}${stop}${pay}. ${entry.title}. Cash ${money(entry.cash)}.`;
+    return `${entry.n}. Spin ${entry.roll}. ${entry.fromAge} \u2192 ${entry.toAge}${stop}${pay}. ${entry.title}. Cash ${money(entry.cash)}.`;
   }
   if (entry.t === "resolve") {
     const name = entry.flavor ? entry.flavor.caption : entry.title;
@@ -341,7 +354,7 @@ function renderStory() {
   choicesEl.replaceChildren();
   if (!space) {
     showFlavor(null);
-    kickerEl.textContent = "Age 18 · choose";
+    kickerEl.textContent = "Age 18 \u00b7 choose";
     titleEl.textContent = "Study, or work.";
     const income = triangleRates(spec, state.point).income;
     const debt = Math.abs(spec.paths.study.spaces[0].cash);
@@ -359,7 +372,7 @@ function renderStory() {
   const card = flavorSeen(space);
   showFlavor(card);
   if (card) bits.push(moodLine[card.mood] || card.mood);
-  kickerEl.textContent = bits.join(" · ");
+  kickerEl.textContent = bits.join(" \u00b7 ");
   titleEl.textContent = card ? card.caption : space.title;
   const extra = [];
   if (!inspect && spun && spun.spaceId === space.id && spun.paydayCash) {
@@ -397,7 +410,7 @@ function deltaMark(kind, delta) {
   if (!Number.isFinite(delta) || Math.abs(delta) < eps) return "";
   const plus = delta > 0;
   const good = kind === "income" ? plus : !plus;
-  const sign = plus ? "+" : "−";
+  const sign = plus ? "+" : "\u2212";
   const word = `${good ? "good" : "bad"}, ${plus ? "above" : "below"} the center`;
   return `<i class="delta ${good ? "good" : "bad"}" aria-label="${word}">${sign}</i>`;
 }
@@ -411,18 +424,19 @@ function renderStats() {
   const portrait = portraitStats(spec, state);
   const age = space ? space.age : spec.meta.ageStart;
   ageEl.textContent = space ? String(space.age) : "18";
-  cashEl.textContent = money(state.cash);
-  cashEl.classList.toggle("debt", state.cash < 0);
-  cashEl.setAttribute("aria-label", state.cash < 0 ? `debt ${money(state.cash)}` : money(state.cash));
-  savingsEl.textContent = money(portrait.savings);
+  savingsEl.textContent = money(state.cash);
+  savingsEl.className = state.cash < 0 ? "bad" : "good";
+  payEl.className = portrait.income < 0 ? "bad" : "good";
   payEl.innerHTML = `${money(portrait.income)}${deltaMark("income", portrait.incomeDelta)}`;
-  expensesEl.innerHTML = `${money(portrait.monthly)}${deltaMark("expense", portrait.expenseDelta)}`;
-  deathChanceEl.innerHTML = `${chanceText(portrait.death)}${deltaMark("death", portrait.deathDelta)}`;
+  const borrowNote = portrait.borrowing > 0 ? `<span class="borrow-note">includes 4% borrowing</span>` : "";
+  expensesEl.className = "bad";
+  expensesEl.innerHTML = `${money(portrait.annual)}${deltaMark("expense", portrait.expenseDelta)}${borrowNote}`;
+  deathChanceEl.innerHTML = `${chanceText(portrait.death)}${deltaMark("death", portrait.deathDelta)}<span class="qx-gap">${spec.mortality.life.name} ${chanceText(portrait.qLife)} \u00b7 ${spec.mortality.annuity.name} ${chanceText(portrait.qAnn)}</span>`;
   yearsEl.textContent = portrait.years.toFixed(1);
   playerEl.textContent = gameName() || "One player";
   const rates = portrait.rates;
-  leverReadout.textContent = `Health ${rates.h.toFixed(2)} · Work ${rates.w.toFixed(2)} · Frugality ${rates.f.toFixed(2)}. Income ×${rates.income.toFixed(2)}. Spend ${(rates.spend * 100).toFixed(0)}%. Mortality ×${rates.mortality.toFixed(2)}.`;
-  const q = deathProbability(spec, age, rates.mortality);
+  leverReadout.textContent = `Health ${rates.h.toFixed(2)} \u00b7 Work ${rates.w.toFixed(2)} \u00b7 Frugality ${rates.f.toFixed(2)}. Income \u00d7${rates.income.toFixed(2)}. Spend ${(rates.spend * 100).toFixed(0)}%.`;
+  const q = deathProbability(spec, age, rates.axis.h);
   drawWheel(q);
   if (wedgeNote) wedgeNote.textContent = `Death wedge ${chanceText(q)} of the circle.`;
   drawFigure(rates);
@@ -430,29 +444,62 @@ function renderStats() {
 }
 
 function drawFigure(rates) {
-  const lean = ((1 - rates.axis.h) / 2) * 10;
-  const sharp = rates.axis.w > 0;
-  const cap = sharp ? "miter" : "round";
-  const join = sharp ? "miter" : "round";
-  const width = sharp ? 1.25 : 1.7;
-  const hipX = (40 + lean).toFixed(1);
-  const shoulder = sharp ? "M22 42 L40 34 L58 42" : "M24 44 Q40 36 56 44";
-  const bag = rates.axis.f < 0
-    ? `<path d="M58 50 h10 v14 h-10" fill="none" stroke="currentColor" stroke-width="1.2"/>`
+  const slouch = (1 - rates.axis.h) / 2;
+  const focus = (rates.axis.w + 1) / 2;
+  const spend = Math.max(0, -rates.axis.f);
+  const mix = (upright, slumped) => +(upright + (slumped - upright) * slouch).toFixed(1);
+  const headX = mix(102, 126);
+  const headY = mix(24, 46);
+  const hipX = mix(90, 76);
+  const hipY = mix(74, 88);
+  const bowX = mix(94, 132);
+  const bowY = mix(50, 72);
+  const shoulderX = mix(98, 116);
+  const shoulderY = mix(46, 60);
+  const backHandX = mix(66, 50);
+  const backHandY = mix(64, 76);
+  const handX = mix(122, 136);
+  const handY = mix(60, 80);
+  const backKneeX = mix(72, 58);
+  const backKneeY = mix(96, 100);
+  const backFootX = mix(56, 46);
+  const backFootY = mix(116, 114);
+  const kneeX = mix(112, 122);
+  const kneeY = mix(96, 102);
+  const frontFootX = mix(128, 138);
+  const frontFootY = mix(116, 110);
+  const width = (2.8 - 1.55 * focus).toFixed(2);
+  const opacity = (0.4 + 0.6 * focus).toFixed(2);
+  const dash = focus < 0.5 ? 'stroke-dasharray="2.2 2.6"' : "";
+  const join = focus >= 0.5 ? "miter" : "round";
+  const cap = focus >= 0.5 ? "butt" : "round";
+  const bag = spend > 0.05
+    ? `<path d="M${shoulderX} ${shoulderY} L${(hipX - 16).toFixed(1)} ${(hipY - 4).toFixed(1)}"/><rect x="${(hipX - 22).toFixed(1)}" y="${(hipY - 8).toFixed(1)}" width="14" height="16"/>`
     : "";
-  const collar = rates.axis.f <= -0.5
-    ? `<path d="M34 36 h12 l-2 6 h-8 z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="miter"/>`
+  const shoes = spend > 0.3
+    ? `<path d="M${(backFootX - 9).toFixed(1)} ${backFootY} h15 M${(frontFootX - 6).toFixed(1)} ${frontFootY} h16"/>`
+    : "";
+  const bracelet = spend > 0.55
+    ? `<circle cx="${handX}" cy="${handY}" r="3.4"/>`
+    : "";
+  const neckX = (headX + 4).toFixed(1);
+  const neckY = (headY + 18).toFixed(1);
+  const necklace = spend > 0.8
+    ? `<path d="M${(headX - 6).toFixed(1)} ${(headY + 8).toFixed(1)} Q${neckX} ${(headY + 22).toFixed(1)} ${(headX + 12).toFixed(1)} ${(headY + 8).toFixed(1)}"/><circle cx="${neckX}" cy="${neckY}" r="2.4"/>`
     : "";
   figureEl.innerHTML = `
-    <circle cx="40" cy="22" r="12" fill="none" stroke="currentColor" stroke-width="${width}"/>
-    <path d="M34 26 h12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-    <path d="${shoulder}" fill="none" stroke="currentColor" stroke-width="${width}" stroke-linejoin="${join}" stroke-linecap="${cap}"/>
-    <path d="M40 34 L${hipX} 72" fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="${cap}"/>
-    <path d="M30 46 L${(18 + lean * 0.2).toFixed(1)} 66" fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="${cap}"/>
-    <path d="M50 46 L${(64 + lean * 0.2).toFixed(1)} 64" fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="${cap}"/>
-    <path d="M${hipX} 72 L${(28 + lean).toFixed(1)} 108" fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="${cap}"/>
-    <path d="M${hipX} 72 L${(54 + lean * 0.3).toFixed(1)} 108" fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="${cap}"/>
-    ${bag}${collar}`;
+    <g fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="${cap}" stroke-linejoin="${join}" opacity="${opacity}" ${dash}>
+      <circle cx="${headX}" cy="${headY}" r="11"/>
+      <path d="M${(headX + 3).toFixed(1)} ${(headY + 2).toFixed(1)} h7"/>
+      <path d="M${headX} ${(headY + 11).toFixed(1)} Q${bowX} ${bowY} ${hipX} ${hipY}"/>
+      <path d="M${shoulderX} ${shoulderY} L${backHandX} ${backHandY}"/>
+      <path d="M${shoulderX} ${shoulderY} L${handX} ${handY}"/>
+      <path d="M${hipX} ${hipY} L${backKneeX} ${backKneeY} L${backFootX} ${backFootY}"/>
+      <path d="M${hipX} ${hipY} L${kneeX} ${kneeY} L${frontFootX} ${frontFootY}"/>
+    </g>
+    <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      ${bag}${shoes}${bracelet}${necklace}
+    </g>`;
 }
 
 function pointXY(point) {
@@ -570,29 +617,41 @@ function note(text) {
 }
 
 function saveGame() {
-  const name = gameName();
-  if (!name) {
+  const typed = gameName();
+  if (!typed) {
     note("Name the game first.");
     return;
   }
+  const name = savedName();
   localStorage.setItem(`life-game:${name}`, JSON.stringify({
     name,
-    player: name,
+    player: typed,
     version: spec.meta.version,
     state,
     animation: animEl.checked,
     speedRun: speedEl.checked,
   }));
-  note(`Saved ${name}.`);
+  note(`Saved ${name}. Resume that full name.`);
 }
 
 function resumeGame() {
-  const name = gameName();
-  if (!name) {
+  const typed = gameName();
+  if (!typed) {
     note("Name the game first.");
     return;
   }
-  const raw = localStorage.getItem(`life-game:${name}`);
+  const names = [typed];
+  const full = savedName();
+  if (full && full !== typed) names.push(full);
+  let raw = null;
+  let name = typed;
+  for (const candidate of names) {
+    raw = localStorage.getItem(`life-game:${candidate}`);
+    if (raw) {
+      name = candidate;
+      break;
+    }
+  }
   if (!raw) {
     note("No save under that name.");
     return;
@@ -612,6 +671,7 @@ function resumeGame() {
   animEl.checked = Boolean(data.animation);
   speedEl.checked = Boolean(data.speedRun);
   pointLocked = Boolean(state.path);
+  gameNameInput.value = name;
   seedInput.value = String(state.seed);
   inspect = null;
   resetNeedle();
@@ -624,6 +684,7 @@ function newGame() {
   pointLocked = false;
   inspect = null;
   resetNeedle();
+  seedInput.value = String(mintSeed());
   state = createGame(spec, seedNumber(), state?.point);
   note("The point is open.");
   render();
