@@ -6,10 +6,24 @@
  * Interest is only the borrowing charge on negative savings.
  * Decumulation is not in this version.
  * Death is on the spin stream, so answers do not move the wedge.
+ * Novice and Beginner ignore the triangle, the wedge, and borrowing.
+ * Advanced keeps the Stage 2 board. Retirement spaces are not in this version.
  */
 
 const KINDS = new Set(["event", "payday", "stop", "choice"]);
 const TONES = new Set(["good", "bad", "neutral"]);
+const GAME_MODES = ["novice", "beginner", "advanced"];
+
+export function isAdvanced(state) {
+  return state?.mode === "advanced";
+}
+
+function normalizeMode(mode) {
+  if (mode === undefined) return "advanced";
+  if (mode === null) return null;
+  if (!GAME_MODES.includes(mode)) throw new Error(`Unknown mode: ${mode}`);
+  return mode;
+}
 
 export function track(spec, pathName) {
   const head = spec.paths[pathName];
@@ -63,6 +77,9 @@ export function validate(spec) {
   }
   for (const mood of ["cute-funny", "funny-sad", "pg-scary", "happy", "exciting"]) {
     if ((moods[mood] || 0) < 3) errors.push(`${mood} needs several cards`);
+  }
+  for (const name of GAME_MODES) {
+    if (!spec.meta.modes?.[name]) errors.push(`missing mode ${name}`);
   }
   const triangle = spec.meta.triangle;
   if (!triangle) errors.push("missing triangle");
@@ -188,6 +205,21 @@ export function triangleRates(spec, point) {
   };
 }
 
+function ratesFor(spec, state) {
+  if (isAdvanced(state)) return triangleRates(spec, state.point);
+  const center = 1 / 3;
+  return {
+    h: center,
+    w: center,
+    f: center,
+    position: { h: center, w: center, f: center },
+    axis: { h: 0, w: 0, f: 0 },
+    income: 1,
+    spend: spec.meta.triangle.spendCenter,
+    healthCost: 1,
+  };
+}
+
 export function budgetFactor(spec, rates) {
   const share = spec.meta.triangle.healthCostShare;
   return rates.spend * ((1 - share) + share * rates.healthCost);
@@ -243,7 +275,7 @@ export function outcomeFromUnit(unit, q) {
 }
 
 export function portraitStats(spec, state) {
-  const rates = triangleRates(spec, state.point);
+  const rates = ratesFor(spec, state);
   const age = currentSpace(spec, state)?.age ?? spec.meta.ageStart;
   const income = state.salary;
   const annual = annualExpenses(income, rates, spec);
@@ -253,7 +285,7 @@ export function portraitStats(spec, state) {
   const centerRates = triangleRates(spec, centerPoint());
   const centerBill = annualExpenses(centerIncome, centerRates, spec);
   const spending = annual;
-  const borrowing = borrowingCharge(state.cash, spec);
+  const borrowing = isAdvanced(state) ? borrowingCharge(state.cash, spec) : 0;
   const bill = spending + borrowing;
   const death = deathProbability(spec, age, rates.axis.h);
   const deathCenter = deathProbability(spec, age, 0);
@@ -289,7 +321,7 @@ function nextUnit(a) {
   return { state: x >>> 0, unit: ((t ^ (t >>> 14)) >>> 0) / 4294967296 };
 }
 
-export function createGame(spec, seed, point) {
+export function createGame(spec, seed, point, mode) {
   validate(spec);
   const s = seed >>> 0;
   return {
@@ -297,6 +329,7 @@ export function createGame(spec, seed, point) {
     spinState: s,
     fateState: (s ^ 0xa5a5a5a5) >>> 0,
     flavorState: (s ^ 0x0f1a70c5) >>> 0,
+    mode: normalizeMode(mode),
     path: null,
     index: -1,
     cash: spec.meta.startingCash,
@@ -328,7 +361,8 @@ function applyEffects(cash, salary, effect, rates) {
   return { cash, salary, cashDelta, salaryDelta };
 }
 
-function takeLiving(spec, cash, expenses, salary, rates) {
+function takeLiving(spec, cash, expenses, salary, rates, advanced) {
+  if (!advanced) return { cash, expenses: expenses || 0, gap: 0, borrow: 0 };
   const gap = livingGap(spec, salary, rates);
   const borrow = borrowingCharge(cash, spec);
   return {
@@ -369,7 +403,7 @@ function settleLanding(spec, state, space) {
   }
   const applied = space.flavor
     ? { cash: state.cash, salary: state.salary, cashDelta: 0, salaryDelta: 0 }
-    : applyEffects(state.cash, state.salary, space, triangleRates(spec, state.point));
+    : applyEffects(state.cash, state.salary, space, ratesFor(spec, state));
   return { applied, flavorState, flavor };
 }
 
@@ -388,6 +422,7 @@ function baseEntry(state, space, extra) {
 
 export function choosePath(spec, state, pathName) {
   if (state.phase !== "choose") throw new Error("Path is already chosen");
+  if (!GAME_MODES.includes(state.mode)) throw new Error("Pick a mode first");
   if (pathName !== "study" && pathName !== "work") throw new Error("Path must be study or work");
   const space = track(spec, pathName)[0];
   let next = {
@@ -410,12 +445,14 @@ export function choosePath(spec, state, pathName) {
     return { ...next, phase: "choice", pendingChoiceId: space.id };
   }
   const settled = settleLanding(spec, next, space);
+  const rates = ratesFor(spec, next);
   const lived = takeLiving(
     spec,
     settled.applied.cash,
     charge(next.expenses, settled.applied.cashDelta),
     settled.applied.salary,
-    triangleRates(spec, next.point),
+    rates,
+    isAdvanced(next),
   );
   next = {
     ...next,
@@ -464,14 +501,15 @@ export function applyRoll(spec, state, roll) {
   let cashDelta = 0;
   let salaryDelta = 0;
   let living = 0;
-  const rates = triangleRates(spec, state.point);
+  const rates = ratesFor(spec, state);
+  const advanced = isAdvanced(state);
   let paydayCash = 0;
   for (const _p of paydays) {
     cash += salary;
     paydayCash += salary;
   }
   for (let n = 1; n < moved; n += 1) {
-    const year = takeLiving(spec, cash, expenses, salary, rates);
+    const year = takeLiving(spec, cash, expenses, salary, rates, advanced);
     cash = year.cash;
     expenses = year.expenses;
     living += year.gap;
@@ -488,7 +526,7 @@ export function applyRoll(spec, state, roll) {
     expenses = charge(expenses, cashDelta);
   }
   if (landed.kind !== "choice") {
-    const year = takeLiving(spec, cash, expenses, salary, rates);
+    const year = takeLiving(spec, cash, expenses, salary, rates, advanced);
     cash = year.cash;
     expenses = year.expenses;
     living += year.gap;
@@ -570,10 +608,13 @@ function endDeath(spec, state, age, q) {
 
 export function spin(spec, state) {
   if (state.phase !== "play") throw new Error("Cannot spin right now");
-  const age = currentSpace(spec, state).age;
-  const q = deathProbability(spec, age, triangleRates(spec, state.point).axis.h);
   const drawn = nextUnit(state.spinState);
   const stepped = { ...state, spinState: drawn.state };
+  if (!isAdvanced(state)) {
+    return applyRoll(spec, stepped, 1 + Math.floor(drawn.unit * 10));
+  }
+  const age = currentSpace(spec, state).age;
+  const q = deathProbability(spec, age, triangleRates(spec, state.point).axis.h);
   const outcome = outcomeFromUnit(drawn.unit, q);
   if (outcome.death) return endDeath(spec, stepped, age, q);
   return applyRoll(spec, stepped, outcome.roll);
@@ -590,7 +631,7 @@ export function resolveChoice(spec, state, accept) {
   let cashDelta = 0;
   let salaryDelta = 0;
   let spent = 0;
-  const rates = triangleRates(spec, state.point);
+  const rates = ratesFor(spec, state);
   if (accept) {
     const applied = applyEffects(cash, salary, space.choice.yes, rates);
     cash = applied.cash;
@@ -609,7 +650,7 @@ export function resolveChoice(spec, state, accept) {
       if ((bonus || 0) < 0) spent -= bonus || 0;
     }
   }
-  const lived = takeLiving(spec, cash, (state.expenses || 0) + spent, salary, rates);
+  const lived = takeLiving(spec, cash, (state.expenses || 0) + spent, salary, rates, isAdvanced(state));
   cash = lived.cash;
   let next = {
     ...state,
