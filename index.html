@@ -3,11 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Life$pan</title>
+    <title>Life</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
+  <body class="mode-unset">
     <div class="shell">
+    <div class="mode-bar">
+      <div class="modes" role="group" aria-label="Mode">
+        <button type="button" data-mode="novice"><span>Novice</span><small>Life</small></button>
+        <button type="button" data-mode="beginner"><span>Beginner</span><small>Life$pan</small></button>
+        <button type="button" data-mode="advanced"><span>Advanced</span><small>Stage 2</small></button>
+      </div>
+      <p id="mode-note"></p>
+    </div>
     <div class="dash">
       <aside class="leaderboard" aria-label="Leaderboard">
         <p class="eyebrow">Leaderboard</p>
@@ -20,22 +28,22 @@
               <dd id="age">—</dd>
             </div>
             <div>
-              <dt>Income</dt>
+              <dt id="pay-label">Pay</dt>
               <dd id="pay">—</dd>
             </div>
-            <div>
+            <div class="stat-stage2">
               <dt>Expenses</dt>
               <dd id="expenses">—</dd>
             </div>
             <div>
-              <dt>Savings</dt>
+              <dt id="cash-label">Cash</dt>
               <dd id="savings">—</dd>
             </div>
-            <div>
+            <div class="stat-stage2">
               <dt>Years left</dt>
               <dd id="years">—</dd>
             </div>
-            <div class="death-stat">
+            <div class="death-stat stat-stage2">
               <dt>Death</dt>
               <dd id="death-chance">—</dd>
             </div>
@@ -54,9 +62,10 @@
       </aside>
 
       <div class="brand">
-        <p class="eyebrow">Stage 2 · v0.5.0</p>
-        <h1>Life$pan</h1>
-        <p class="dek">A working life, ages 18–68.</p>
+        <p class="eyebrow">v0.6.0</p>
+        <h1 id="title">Life</h1>
+        <p class="dek" id="dek">Pick Novice, Beginner, or Advanced.</p>
+        <p id="retirement" class="retirement" hidden>Retirement. Not built yet.</p>
         <div class="switches" role="group" aria-label="Play switches">
           <label class="switch"><input id="anim" type="checkbox" checked /> Animation</label>
           <label class="switch"><input id="speed" type="checkbox" /> Speed run</label>
@@ -71,7 +80,7 @@
 
     <section class="story" aria-live="polite">
       <div id="setup">
-        <p class="setup-lead">Drag the point. Health, work, and frugality. It locks when the path starts.</p>
+        <p class="setup-lead" id="setup-lead">Pick a mode. It locks when Study or Work begins.</p>
         <p id="share-sum"></p>
         <div class="name-row">
           <label for="game-name">Game name</label>
