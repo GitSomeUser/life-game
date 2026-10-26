@@ -10,6 +10,7 @@ import {
   createGame,
   currentSpace,
   deathProbability,
+  isAdvanced,
   lifeExpectancy,
   monthlyExpenses,
   outcomeFromUnit,
@@ -342,6 +343,57 @@ test("the center and the three corners match the triangle", () => {
   assert.equal(once.death.age, twice.death.age);
   assert.equal(once.index, twice.index);
   assert.deepEqual(once.log, twice.log);
+});
+
+test("novice and beginner ignore the triangle and the wedge", () => {
+  const point = { h: 0, w: 1, f: 0 };
+  const novice = choosePath(spec, createGame(spec, 7, point, "novice"), "study");
+  assert.equal(novice.mode, "novice");
+  assert.equal(isAdvanced(novice), false);
+  assert.equal(novice.cash, spec.meta.startingCash - 124000);
+  const placed = applyRoll(spec, novice, 10);
+  assert.equal(placed.salary, spec.meta.studySalary);
+  assert.equal(placed.death, null);
+
+  const beginner = choosePath(spec, createGame(spec, 7, point, "beginner"), "study");
+  assert.equal(beginner.cash, novice.cash);
+  assert.equal(beginner.salary, novice.salary);
+
+  const advanced = choosePath(spec, createGame(spec, 7, point, "advanced"), "study");
+  assert.notEqual(advanced.cash, novice.cash);
+  assert.equal(advanced.cash, novice.cash - Math.round(-novice.cash * spec.meta.triangle.borrowingRate));
+
+  const hired = choosePath(spec, createGame(spec, 3, point, "novice"), "work");
+  assert.equal(hired.salary, spec.meta.workSalary);
+  assert.equal(hired.cash, spec.meta.startingCash);
+
+  const play = (mode, seed) => {
+    let state = choosePath(spec, createGame(spec, seed, point, mode), "work");
+    let guard = 0;
+    while (state.phase !== "ended" && guard++ < 80) {
+      state = state.phase === "choice" ? resolveChoice(spec, state, false) : spin(spec, state);
+    }
+    return state;
+  };
+  let died = null;
+  for (let seed = 1; seed < 4000 && !died; seed += 1) {
+    if (play("advanced", seed).death) died = seed;
+  }
+  assert.ok(died, "an advanced life should be able to hit the wedge");
+  const plain = play("novice", died);
+  const same = play("beginner", died);
+  assert.equal(plain.death, null);
+  assert.equal(same.death, null);
+  assert.equal(currentSpace(spec, plain).age, 68);
+  assert.equal(currentSpace(spec, same).age, 68);
+  assert.equal(plain.cash, same.cash);
+  assert.equal(plain.salary, same.salary);
+  const spun = plain.log.find((entry) => entry.t === "spin");
+  assert.ok(spun.roll >= 1 && spun.roll <= 10);
+  assert.equal(plain.log.some((entry) => entry.t === "death"), false);
+  assert.equal(spec.paths.retirement, undefined);
+  assert.equal(spec.meta.ageEnd, 68);
+  assert.throws(() => choosePath(spec, createGame(spec, 1, point, null), "work"), /mode/);
 });
 
 test("tone mix is recorded for a later matching phase", () => {
