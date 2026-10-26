@@ -4,6 +4,7 @@ import spec from "../spec/accumulation.json" with { type: "json" };
 import {
   annualExpenses,
   applyRoll,
+  attributeWeights,
   axis,
   choosePath,
   createGame,
@@ -33,7 +34,10 @@ test("study pays tuition immediately and sets salary only at the job stop", () =
   const tuition = spec.paths.study.spaces[0].cash;
   const salary = spec.paths.study.spaces[3].salarySet;
   let state = choosePath(spec, createGame(spec, 7), "study");
-  assert.equal(state.cash, spec.meta.startingCash + tuition);
+  const owed = spec.meta.startingCash + tuition;
+  const borrow = Math.round(-owed * spec.meta.triangle.borrowingRate);
+  assert.ok(owed < 0);
+  assert.equal(state.cash, owed - borrow);
   assert.equal(state.salary, 0);
   assert.equal(currentSpace(spec, state).id, "study-tuition");
   state = applyRoll(spec, state, 10);
@@ -177,7 +181,8 @@ test("no-stakes years draw a flavor card and leave cash alone", () => {
   const before = state.cash;
   state = applyRoll(spec, state, 1);
   assert.equal(currentSpace(spec, state).id, "study-nights");
-  assert.equal(state.cash, before);
+  assert.equal(state.cash, before - Math.round(-before * spec.meta.triangle.borrowingRate));
+  assert.equal(state.log.findLast((entry) => entry.t === "resolve").cashDelta, 0);
   assert.equal(state.salary, 0);
   const card = state.log.at(-1).flavor;
   assert.ok(card.id && card.caption && card.still);
@@ -211,8 +216,8 @@ test("the center and the three corners match the triangle", () => {
   const center = triangleRates(spec, { h: 1 / 3, w: 1 / 3, f: 1 / 3 });
   close(center.income, 1);
   close(center.spend, 0.6);
-  close(center.mortality, 1);
   close(center.healthCost, 1);
+  close(center.h, 1 / 3);
   close(axis(1 / 3), 0);
   assert.equal(annualExpenses(48000, center, spec), 28800);
   assert.equal(monthlyExpenses(48000, center, spec), 2400);
@@ -220,7 +225,7 @@ test("the center and the three corners match the triangle", () => {
   const health = triangleRates(spec, { h: 1, w: 0, f: 0 });
   close(health.income, 0.8);
   close(health.spend, 0.8);
-  close(health.mortality, 0.5);
+  close(health.h, 1);
   close(health.healthCost, 0.5);
   const healthIncome = Math.round(48000 * 0.8);
   const healthAnnual = Math.round(healthIncome * 0.8 * (0.75 + 0.25 * 0.5));
@@ -229,7 +234,7 @@ test("the center and the three corners match the triangle", () => {
   const work = triangleRates(spec, { h: 0, w: 1, f: 0 });
   close(work.income, 1.2);
   close(work.spend, 0.8);
-  close(work.mortality, 1.5);
+  close(work.h, 0);
   close(work.healthCost, 1.2);
   const workIncome = Math.round(48000 * 1.2);
   assert.equal(annualExpenses(workIncome, work, spec), Math.round(workIncome * 0.8 * (0.75 + 0.25 * 1.2)));
@@ -237,13 +242,14 @@ test("the center and the three corners match the triangle", () => {
   const frugal = triangleRates(spec, { h: 0, w: 0, f: 1 });
   close(frugal.income, 0.8);
   close(frugal.spend, 0.4);
-  close(frugal.mortality, 1.5);
+  close(frugal.h, 0);
   close(frugal.healthCost, 1.2);
   const frugalIncome = Math.round(48000 * 0.8);
   assert.equal(annualExpenses(frugalIncome, frugal, spec), Math.round(frugalIncome * 0.4 * (0.75 + 0.25 * 1.2)));
 
   let studied = choosePath(spec, createGame(spec, 7, { h: 1, w: 0, f: 0 }), "study");
-  assert.equal(studied.cash, spec.meta.startingCash - 124000);
+  const studiedOwed = spec.meta.startingCash - 124000;
+  assert.equal(studied.cash, studiedOwed - Math.round(-studiedOwed * spec.meta.triangle.borrowingRate));
   assert.equal(studied.salary, 0);
   studied = applyRoll(spec, studied, 10);
   assert.equal(studied.salary, Math.round(68000 * 0.8));
@@ -265,18 +271,29 @@ test("the center and the three corners match the triangle", () => {
   assert.equal(party, -8000);
 
   const age = 18;
-  assert.equal(deathProbability(spec, age, 1), spec.mortality.longer.q[0]);
-  close(deathProbability(spec, age, health.mortality), spec.mortality.longer.q[0] * 0.5);
-  close(deathProbability(spec, age, work.mortality), spec.mortality.longer.q[0] * 1.5);
-  assert.ok(lifeExpectancy(spec, age, health.mortality) > lifeExpectancy(spec, age, 1));
-  assert.ok(lifeExpectancy(spec, age, 1) > lifeExpectancy(spec, age, work.mortality));
-  assert.equal(lifeExpectancy(spec, 68, 1), 0);
-  assert.equal(spec.mortality.longer.q.length, 51);
-  assert.equal(spec.mortality.shorter.q.length, 51);
-  spec.mortality.shorter.q.forEach((q, i) => {
-    assert.ok(q > spec.mortality.longer.q[i]);
-    assert.ok(Math.abs(q - (spec.mortality.shorter.male[i] + spec.mortality.shorter.female[i]) / 2) < 1e-12);
+  assert.equal(deathProbability(spec, age, 1), spec.mortality.annuity.q[0]);
+  assert.equal(deathProbability(spec, age, -1), spec.mortality.life.q[0]);
+  close(deathProbability(spec, age, 0), (spec.mortality.life.q[0] + spec.mortality.annuity.q[0]) / 2);
+  assert.ok(lifeExpectancy(spec, age, 1) > lifeExpectancy(spec, age, 0));
+  assert.ok(lifeExpectancy(spec, age, 0) > lifeExpectancy(spec, age, -1));
+  assert.equal(lifeExpectancy(spec, 68, 0), 0);
+  assert.equal(spec.mortality.annuity.q.length, 51);
+  assert.equal(spec.mortality.life.q.length, 51);
+  spec.mortality.annuity.q.forEach((q, i) => {
+    assert.ok(spec.mortality.life.q[i] > q);
+    assert.ok(Math.abs(q - (spec.mortality.annuity.male[i] + spec.mortality.annuity.female[i]) / 2) < 1e-9);
   });
+  const edgeMid = attributeWeights({ h: 0, w: 1 / 2, f: 1 / 2 });
+  const edgeNearWork = attributeWeights({ h: 0, w: 4 / 5, f: 1 / 5 });
+  const edgeNearFrugal = attributeWeights({ h: 0, w: 1 / 5, f: 4 / 5 });
+  assert.ok(edgeMid.h > edgeNearWork.h);
+  assert.ok(edgeMid.h > edgeNearFrugal.h);
+  assert.ok(edgeMid.h > 0);
+  assert.ok(edgeMid.h < 1 / 3);
+  const edgeRates = triangleRates(spec, { h: 0, w: 1 / 2, f: 1 / 2 });
+  assert.ok(edgeRates.axis.h > -1 && edgeRates.axis.h < 0);
+  assert.ok(deathProbability(spec, age, edgeRates.axis.h) < deathProbability(spec, age, -1));
+  assert.ok(deathProbability(spec, age, edgeRates.axis.h) > deathProbability(spec, age, 0));
 
   const stats = portraitStats(spec, hired);
   assert.equal(stats.income, workIncome);
