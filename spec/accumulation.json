@@ -1,1 +1,1068 @@
-PLACEHOLDER_DO_NOT_USE
+{
+  "meta": {
+    "stage": 2,
+    "version": "0.6.0",
+    "ageStart": 18,
+    "ageEnd": 68,
+    "yearsPerSpace": 1,
+    "spinner": [
+      1,
+      10
+    ],
+    "startingCash": 10000,
+    "studySalary": 68000,
+    "workSalary": 48000,
+    "rules": [
+      "Before the path starts, pick Novice, Beginner, or Advanced. The choice locks when Study or Work begins.",
+      "Novice is traditional Life: age, cash, and pay. The spinner is 1 through 10. No triangle, no death wedge, no mortality tables, no walker, and no borrowing charge.",
+      "Beginner is Life$pan and plays like Novice. Retirement is named on the screen and is not built in this version.",
+      "Advanced keeps the Stage 2 board: the triangle, both mortality tables, the walker, income, expenses, savings, and the death wedge.",
+      "On Advanced, the spinner shows 1 through 10, plus a death wedge. The wedge is this year's death probability, as a fraction of the circle. Landing in it ends the life on the current square. No numbered move.",
+      "You resolve the space you land on. Spaces you pass do not fire, except Payday.",
+      "Payday adds your current salary when you land on it or pass it.",
+      "A stop ends the move even if steps remain. Then you spin again.",
+      "Ages 18 to 21 are a fork. Study and Work each have four spaces, then one shared track from 22 to 68.",
+      "At 68 the working track ends. Decumulation is not in this version. On Advanced, the only interest is the borrowing charge while savings are negative. Novice and Beginner do not charge it. Retirement spaces are not in this version.",
+      "One point in the triangle sets health, work, and frugality. Weights are inverse distance to the vertices, so an edge does not freeze the far one. It locks when the path starts. The center is still one third."
+    ],
+    "modes": {
+      "novice": "Traditional Life. Age, cash, and pay. No triangle, no death wedge, no mortality tables, no walker, and no borrowing charge.",
+      "beginner": "Life$pan. The board plays like Novice. Retirement is named and is not built in this version.",
+      "advanced": "The Stage 2 board. Triangle, 2012 IAR and 2017 Loaded CSO, the side-view walker, income, expenses, savings, and the death wedge."
+    },
+    "home": "downPayment",
+    "sources": [
+      "College Board, Trends in College Pricing and Student Aid 2025. Public four-year in-state student budget $30,990 in 2025-26 ($123,960 over four years). Net cost of attendance $21,340 a year. https://research.collegeboard.org/media/pdf/Trends-in-College-Pricing-and-Student-Aid-2025-final.pdf",
+      "College Board, Trends in Student Aid: 2023-24 bachelor's recipients who borrowed left with $29,560 on average. https://research.collegeboard.org/trends/student-aid/highlights",
+      "NACE Summer 2026 Salary Survey: Class of 2025 bachelor's average starting salary $67,983. https://www.naceweb.org/job-market/compensation/starting-salaries-climb-for-the-class-of-2025",
+      "BLS, employment and wages by typical entry-level education, median annual wage 2025 for high school diploma or equivalent: $48,050. https://www.bls.gov/emp/tables/education-summary.htm",
+      "BLS OEWS May 2025: construction trades workers median $58,150; electricians $63,190; electrician helpers about $42,661 ($20.51 an hour). https://www.bls.gov/ooh/construction-and-extraction/electricians.htm",
+      "NAR median existing-home price $417,500 in September 2026. 2025 Profile of Home Buyers and Sellers: first-time buyer median down payment 10 percent, July 2024 through June 2025. https://www.nar.realtor/press-releases/first-time-home-buyer-share-falls-to-historic-low-of-21-median-age-rises-to-40",
+      "FTC Consumer Sentinel 2024: median reported fraud loss $497. More than 120,000 reports lost over $10,000. Stolen identity on this board is an $8,000 hit in that serious range. https://www.ftc.gov/news-events/news/press-releases/2025/03/new-ftc-data-show-big-jump-reported-losses-fraud-125-billion-2024"
+    ],
+    "triangle": {
+      "incomePerAxis": 0.2,
+      "spendCenter": 0.6,
+      "spendPerAxis": 0.2,
+      "healthCostShare": 0.25,
+      "healthCostAbove": 0.5,
+      "healthCostBelow": 0.2,
+      "note": "Weights are inverse distance to the vertices. Income and the spending rate still follow axis() against one third. Health-related costs are one quarter of the spending budget. Total annual expenses = income × spend rate × (0.75 + 0.25 × health-cost multiplier). When savings are negative, expenses also include borrowing at 4% of the amount below zero. The center is the baseline for ordinary living, so cash moves by the gap between this point's annual expense factor and the center's, and then by that borrowing charge. At the center the living gap is zero. Salary follows the income multiplier.",
+      "borrowingRate": 0.04
+    }
+  },
+  "paths": {
+    "study": {
+      "label": "Study",
+      "spaces": [
+        {
+          "id": "study-tuition",
+          "age": 18,
+          "title": "Tuition",
+          "detail": "Four years of a public in-state budget, due up front. The number is the price, not the average loan.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -124000,
+          "adapts": "College path opening. Four years of the published public in-state student budget. No gendered campus."
+        },
+        {
+          "id": "study-nights",
+          "age": 19,
+          "title": "A year",
+          "detail": "No bill this year. The card stays closed until you land.",
+          "tone": "neutral",
+          "kind": "event",
+          "adapts": "Was the study year with no payday. Now a closed flavor year.",
+          "flavor": true
+        },
+        {
+          "id": "study-intern",
+          "age": 20,
+          "title": "Paid internship",
+          "detail": "The summer deposit hits the app. Enough for food and a bus pass. Not enough to touch the debt.",
+          "tone": "good",
+          "kind": "event",
+          "cash": 8000,
+          "adapts": "Late college income, smaller than a career payday."
+        },
+        {
+          "id": "study-role",
+          "age": 21,
+          "title": "First role",
+          "detail": "You stop. School is over, and the higher pay starts with this job.",
+          "tone": "good",
+          "kind": "stop",
+          "salarySet": 68000,
+          "adapts": "Job Search stop. Guaranteed, like the classic red space. Higher pay than the work path."
+        }
+      ]
+    },
+    "work": {
+      "label": "Work",
+      "spaces": [
+        {
+          "id": "work-job",
+          "age": 18,
+          "title": "First job",
+          "detail": "You start work now. No degree required. The pay starts today.",
+          "tone": "good",
+          "kind": "event",
+          "salarySet": 48000,
+          "adapts": "Career path opening. Immediate job at the high-school-occupation median. No degree gate."
+        },
+        {
+          "id": "work-payday",
+          "age": 19,
+          "title": "Payday",
+          "detail": "Salary hits the account. The study path does not have this year.",
+          "tone": "good",
+          "kind": "payday",
+          "adapts": "Early Payday the career path reaches sooner."
+        },
+        {
+          "id": "work-tools",
+          "age": 20,
+          "title": "Dead laptop",
+          "detail": "The machine you work on dies. The replacement is on you.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -2500,
+          "adapts": "Early career expense. A dead laptop, in place of a tool kit."
+        },
+        {
+          "id": "work-raise",
+          "age": 21,
+          "title": "Early raise",
+          "detail": "A step toward trade-scale pay, only if you land here. Passing through skips it.",
+          "tone": "good",
+          "kind": "event",
+          "salaryDelta": 10000,
+          "adapts": "From high-school-occupation pay toward the construction-trades median. Land only. Not a stop."
+        }
+      ]
+    },
+    "shared": {
+      "label": "Shared years",
+      "spaces": [
+        {
+          "id": "room",
+          "age": 22,
+          "title": "First lease",
+          "detail": "The application clears. Deposit and the first month are due before the key.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -4000,
+          "adapts": "First household setup after the paths merge."
+        },
+        {
+          "id": "pay-23",
+          "age": 23,
+          "title": "Payday",
+          "detail": "Salary hits the account.",
+          "tone": "good",
+          "kind": "payday",
+          "adapts": "Payday. Collect salary on land or pass."
+        },
+        {
+          "id": "friend",
+          "age": 24,
+          "title": "Scam text",
+          "detail": "A text from your bank. It was not your bank. The payment went through.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -1500,
+          "adapts": "A current mishap. A scam text, settled in cash."
+        },
+        {
+          "id": "refund",
+          "age": 25,
+          "title": "Refund hits",
+          "detail": "The tax app drops a refund you did not plan on.",
+          "tone": "good",
+          "kind": "event",
+          "cash": 3000,
+          "adapts": "Small windfall."
+        },
+        {
+          "id": "partnership",
+          "age": 26,
+          "title": "Partnership",
+          "detail": "You stop. Two people, one household. The party is small and still costs.",
+          "tone": "neutral",
+          "kind": "stop",
+          "cash": -8000,
+          "adapts": "Get Married stop. No spouse gender, no pink or blue pegs."
+        },
+        {
+          "id": "gifts",
+          "age": 27,
+          "title": "Group transfers",
+          "detail": "People send what they can. The payment apps light up, and someone still mails a pan.",
+          "tone": "good",
+          "kind": "event",
+          "cash": 2000,
+          "adapts": "Honeymoon beat, recast as gifts to the household."
+        },
+        {
+          "id": "pay-28",
+          "age": 28,
+          "title": "Payday",
+          "detail": "Salary hits the account.",
+          "tone": "good",
+          "kind": "payday",
+          "adapts": "Payday. Collect salary on land or pass."
+        },
+        {
+          "id": "child",
+          "age": 29,
+          "title": "A child arrives",
+          "detail": "A child joins the household. The spare room is no longer spare, and the bills start.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -12000,
+          "adapts": "Baby space. No boy or girl."
+        },
+        {
+          "id": "course",
+          "age": 30,
+          "title": "Online course",
+          "detail": "Nights on a laptop, a fee, and a raise if you finish.",
+          "tone": "neutral",
+          "kind": "choice",
+          "adapts": "Night school. Optional, like a blue space.",
+          "choice": {
+            "prompt": "Pay $4,000 for an online course that raises your pay by $4,000?",
+            "yesLabel": "Take it",
+            "noLabel": "Skip it",
+            "yes": {
+              "cash": -4000,
+              "salaryDelta": 4000
+            },
+            "no": {}
+          }
+        },
+        {
+          "id": "repair",
+          "age": 31,
+          "title": "Stolen card",
+          "detail": "The card number is out. Charges land before you freeze it.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -2200,
+          "adapts": "Lost or stolen card. Charges before the freeze. Separate from the lost phone."
+        },
+        {
+          "id": "bonus",
+          "age": 32,
+          "title": "Bonus deposit",
+          "detail": "A little extra hits the account at the end of the year.",
+          "tone": "good",
+          "kind": "event",
+          "cash": 5000,
+          "adapts": "Bonus windfall."
+        },
+        {
+          "id": "pay-33",
+          "age": 33,
+          "title": "Payday",
+          "detail": "Salary hits the account.",
+          "tone": "good",
+          "kind": "payday",
+          "adapts": "Payday. Collect salary on land or pass."
+        },
+        {
+          "id": "home",
+          "age": 34,
+          "title": "A home",
+          "detail": "You stop. This is the down payment, ten percent, not the whole price.",
+          "tone": "bad",
+          "kind": "stop",
+          "cash": -42000,
+          "adapts": "Buy a House stop. A first-time down payment, not the full sale price and not a deed deck."
+        },
+        {
+          "id": "housewarming",
+          "age": 35,
+          "title": "Housewarming",
+          "detail": "People show up once. A few transfers cover a chair.",
+          "tone": "good",
+          "kind": "event",
+          "cash": 2000,
+          "adapts": "After the house, a small return."
+        },
+        {
+          "id": "twins",
+          "age": 36,
+          "title": "Twins arrive",
+          "detail": "Two children join the household at once.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -22000,
+          "adapts": "Twins space. No sexes assigned."
+        },
+        {
+          "id": "quiet-37",
+          "age": 37,
+          "title": "A year",
+          "detail": "No bill this year. The card stays closed until you land.",
+          "tone": "neutral",
+          "kind": "event",
+          "adapts": "Breathing room. A flavor card, no cash.",
+          "flavor": true
+        },
+        {
+          "id": "pay-38",
+          "age": 38,
+          "title": "Payday",
+          "detail": "Salary hits the account.",
+          "tone": "good",
+          "kind": "payday",
+          "adapts": "Payday. Collect salary on land or pass."
+        },
+        {
+          "id": "taxes",
+          "age": 39,
+          "title": "Stolen identity",
+          "detail": "Someone opens accounts in your name. The money is gone before the bank sorts it out.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -8000,
+          "adapts": "Serious mishap. Stolen online identity. An $8,000 hit."
+        },
+        {
+          "id": "promotion",
+          "age": 40,
+          "title": "Promotion",
+          "detail": "The new title sticks. Pay moves, if you land here.",
+          "tone": "good",
+          "kind": "event",
+          "salaryDelta": 8000,
+          "adapts": "Midlife raise. Land only."
+        },
+        {
+          "id": "reunion",
+          "age": 41,
+          "title": "A year",
+          "detail": "No bill this year. The card stays closed until you land.",
+          "tone": "neutral",
+          "kind": "event",
+          "adapts": "Was a group dinner with a small cost. The cost is zero. A flavor card.",
+          "flavor": true
+        },
+        {
+          "id": "market",
+          "age": 42,
+          "title": "Investing app",
+          "detail": "A tip in the app, a stake, and an outcome fixed by the seed.",
+          "tone": "neutral",
+          "kind": "choice",
+          "adapts": "Stock space. Optional. Outcome is seeded, not a hidden shuffle.",
+          "choice": {
+            "prompt": "Put $10,000 in the investing app? Even odds, from the seed. Success pays $24,000 back, a $14,000 gain. Otherwise the $10,000 is lost.",
+            "yesLabel": "Invest",
+            "noLabel": "Hold cash",
+            "yes": {
+              "cash": -10000
+            },
+            "no": {},
+            "fate": {
+              "p": 0.5,
+              "successCash": 24000,
+              "failCash": 0
+            }
+          }
+        },
+        {
+          "id": "pay-43",
+          "age": 43,
+          "title": "Payday",
+          "detail": "Salary hits the account.",
+          "tone": "good",
+          "kind": "payday",
+          "adapts": "Payday. Collect salary on land or pass."
+        },
+        {
+          "id": "painting",
+          "age": 44,
+          "title": "Sold online",
+          "detail": "An old setup finds a buyer. The payout clears.",
+          "tone": "good",
+          "kind": "event",
+          "cash": 5000,
+          "adapts": "Marketplace sale, in place of selling a painting."
+        },
+        {
+          "id": "clinic",
+          "age": 45,
+          "title": "Subscription trap",
+          "detail": "The free trials renewed. So did the annual plan you forgot.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -2800,
+          "adapts": "A stack of subscriptions, in place of a small clinic bill. The later medical year still carries the health cost."
+        },
+        {
+          "id": "move",
+          "age": 46,
+          "title": "Another city",
+          "detail": "The work would pay more somewhere else. Moving is not free.",
+          "tone": "neutral",
+          "kind": "choice",
+          "adapts": "Optional life change, in the spirit of a blue space.",
+          "choice": {
+            "prompt": "Spend $8,000 to move for a $6,000 raise?",
+            "yesLabel": "Move",
+            "noLabel": "Stay",
+            "yes": {
+              "cash": -8000,
+              "salaryDelta": 6000
+            },
+            "no": {}
+          }
+        },
+        {
+          "id": "wallet",
+          "age": 47,
+          "title": "Lost phone",
+          "detail": "The phone is gone. Replacing it hits the account. The card is a different year.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -1200,
+          "adapts": "Lost phone. The device, separate from the stolen card."
+        },
+        {
+          "id": "pay-48",
+          "age": 48,
+          "title": "Payday",
+          "detail": "Salary hits the account.",
+          "tone": "good",
+          "kind": "payday",
+          "adapts": "Payday. Collect salary on land or pass."
+        },
+        {
+          "id": "lessons",
+          "age": 49,
+          "title": "Activity fees",
+          "detail": "The club, the app, the season. The household pays it.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -4500,
+          "adapts": "Child-related cost without boy/girl framing."
+        },
+        {
+          "id": "quiet-50",
+          "age": 50,
+          "title": "A year",
+          "detail": "No bill this year. The card stays closed until you land.",
+          "tone": "neutral",
+          "kind": "event",
+          "adapts": "Was a quiet year. A flavor card, no cash.",
+          "flavor": true
+        },
+        {
+          "id": "cola",
+          "age": 51,
+          "title": "Pay bump",
+          "detail": "A cost-of-living raise, if this is the year you land.",
+          "tone": "good",
+          "kind": "event",
+          "salaryDelta": 4000,
+          "adapts": "Small raise. Land only."
+        },
+        {
+          "id": "venture",
+          "age": 52,
+          "title": "Side hustle",
+          "detail": "Nights and a stake. The seed already knows how it ends.",
+          "tone": "neutral",
+          "kind": "choice",
+          "adapts": "Risky business. Optional. Seeded odds.",
+          "choice": {
+            "prompt": "Stake $10,000 on a side hustle? A 3-in-5 chance, from the seed, pays $24,000 back, a $14,000 gain. Otherwise the $10,000 is lost.",
+            "yesLabel": "Stake it",
+            "noLabel": "Decline",
+            "yes": {
+              "cash": -10000
+            },
+            "no": {},
+            "fate": {
+              "p": 0.6,
+              "successCash": 24000,
+              "failCash": 0
+            }
+          }
+        },
+        {
+          "id": "pay-53",
+          "age": 53,
+          "title": "Payday",
+          "detail": "Salary hits the account.",
+          "tone": "good",
+          "kind": "payday",
+          "adapts": "Payday. Collect salary on land or pass."
+        },
+        {
+          "id": "storm",
+          "age": 54,
+          "title": "Pay-later bill",
+          "detail": "The buy-now-pay-later plans come due in the same month.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -4000,
+          "adapts": "Buy now, pay later. A household-scale bill, in place of storm damage."
+        },
+        {
+          "id": "recognition",
+          "age": 55,
+          "title": "Recognition",
+          "detail": "The work gets seen. Pay moves, if you land here.",
+          "tone": "good",
+          "kind": "event",
+          "salaryDelta": 6000,
+          "adapts": "Late-career raise. Land only."
+        },
+        {
+          "id": "quiet-56",
+          "age": 56,
+          "title": "A year",
+          "detail": "No bill this year. The card stays closed until you land.",
+          "tone": "neutral",
+          "kind": "event",
+          "adapts": "Breathing room. A flavor card, no cash.",
+          "flavor": true
+        },
+        {
+          "id": "gift",
+          "age": 57,
+          "title": "Family transfer",
+          "detail": "Money from someone who kept their word. No name on it.",
+          "tone": "good",
+          "kind": "event",
+          "cash": 4000,
+          "adapts": "Inheritance windfall, gender-neutral."
+        },
+        {
+          "id": "pay-58",
+          "age": 58,
+          "title": "Payday",
+          "detail": "Salary hits the account.",
+          "tone": "good",
+          "kind": "payday",
+          "adapts": "Payday. Collect salary on land or pass."
+        },
+        {
+          "id": "parent",
+          "age": 59,
+          "title": "Support a parent",
+          "detail": "A parent needs a year of help. You send it.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -5000,
+          "adapts": "Family support. No mother/father assignment."
+        },
+        {
+          "id": "festival",
+          "age": 60,
+          "title": "A year",
+          "detail": "No bill this year. The card stays closed until you land.",
+          "tone": "neutral",
+          "kind": "event",
+          "adapts": "Was the group tab with a small cost. The cost is zero. A flavor card.",
+          "flavor": true
+        },
+        {
+          "id": "quiet-61",
+          "age": 61,
+          "title": "A year",
+          "detail": "No bill this year. The card stays closed until you land.",
+          "tone": "neutral",
+          "kind": "event",
+          "adapts": "Breathing room. A flavor card, no cash.",
+          "flavor": true
+        },
+        {
+          "id": "contract",
+          "age": 62,
+          "title": "Gig paid",
+          "detail": "The invoice clears. The payout hits.",
+          "tone": "good",
+          "kind": "event",
+          "cash": 6000,
+          "adapts": "Late windfall."
+        },
+        {
+          "id": "pay-63",
+          "age": 63,
+          "title": "Payday",
+          "detail": "Salary hits the account.",
+          "tone": "good",
+          "kind": "payday",
+          "adapts": "Payday near the classic early-retirement age. No early retirement choice in this version."
+        },
+        {
+          "id": "medical",
+          "age": 64,
+          "title": "A medical year",
+          "detail": "The portal bill, the deductible, and you are still on the track.",
+          "tone": "bad",
+          "kind": "event",
+          "cash": -6000,
+          "adapts": "Health cost. Not a death sliver."
+        },
+        {
+          "id": "quiet-65",
+          "age": 65,
+          "title": "A year",
+          "detail": "No bill this year. The card stays closed until you land.",
+          "tone": "neutral",
+          "kind": "event",
+          "adapts": "Breathing room. A flavor card, no cash.",
+          "flavor": true
+        },
+        {
+          "id": "farewell",
+          "age": 66,
+          "title": "A year",
+          "detail": "No bill this year. The card stays closed until you land.",
+          "tone": "neutral",
+          "kind": "event",
+          "adapts": "Was a send-off with a small cost. The cost is zero. A flavor card.",
+          "flavor": true
+        },
+        {
+          "id": "pay-67",
+          "age": 67,
+          "title": "Payday",
+          "detail": "Salary hits the account. One year of the track remains.",
+          "tone": "good",
+          "kind": "payday",
+          "adapts": "Last Payday before the gate."
+        },
+        {
+          "id": "gate",
+          "age": 68,
+          "title": "Retirement gate",
+          "detail": "You stop. Working life ends at 68. This version ends with it.",
+          "tone": "neutral",
+          "kind": "stop",
+          "terminal": true,
+          "adapts": "Retire stop. No Millionaire Estates, no annuity, no decumulation."
+        }
+      ]
+    }
+  },
+  "flavorCards": [
+    {
+      "id": "cat-loaf",
+      "mood": "cute-funny",
+      "caption": "The cat became a loaf on the warm router.",
+      "still": "art/flavor/cat-loaf.svg",
+      "animation": null
+    },
+    {
+      "id": "sock-dog",
+      "mood": "cute-funny",
+      "caption": "The dog is wearing one sock and will not explain.",
+      "still": "art/flavor/sock-dog.svg",
+      "animation": null
+    },
+    {
+      "id": "fry-bow",
+      "mood": "cute-funny",
+      "caption": "A pigeon took one fry and bowed.",
+      "still": "art/flavor/fry-bow.svg",
+      "animation": null
+    },
+    {
+      "id": "late-balloon",
+      "mood": "funny-sad",
+      "caption": "The balloon is still on the mailbox. The party was yesterday.",
+      "still": "art/flavor/late-balloon.svg",
+      "animation": null
+    },
+    {
+      "id": "goldfish-film",
+      "mood": "funny-sad",
+      "caption": "The goldfish watched the whole film and forgot it.",
+      "still": "art/flavor/goldfish-film.svg",
+      "animation": null
+    },
+    {
+      "id": "trophy-sock",
+      "mood": "funny-sad",
+      "caption": "The little trophy is holding a single sock.",
+      "still": "art/flavor/trophy-sock.svg",
+      "animation": null
+    },
+    {
+      "id": "polite-closet",
+      "mood": "pg-scary",
+      "caption": "Two eyes in the closet blinked and said excuse me.",
+      "still": "art/flavor/polite-closet.svg",
+      "animation": null
+    },
+    {
+      "id": "wagging-shadow",
+      "mood": "pg-scary",
+      "caption": "Your shadow grew a tail and wagged.",
+      "still": "art/flavor/wagging-shadow.svg",
+      "animation": null
+    },
+    {
+      "id": "fridge-song",
+      "mood": "pg-scary",
+      "caption": "The fridge hummed a lullaby. It was trying to help.",
+      "still": "art/flavor/fridge-song.svg",
+      "animation": null
+    },
+    {
+      "id": "leaf-parade",
+      "mood": "happy",
+      "caption": "The neighborhood dog led a parade of leaves.",
+      "still": "art/flavor/leaf-parade.svg",
+      "animation": null
+    },
+    {
+      "id": "ball-in",
+      "mood": "happy",
+      "caption": "The ball found the net. The bench made a noise.",
+      "still": "art/flavor/ball-in.svg",
+      "animation": null
+    },
+    {
+      "id": "aisle-song",
+      "mood": "happy",
+      "caption": "Your song came on between the cans.",
+      "still": "art/flavor/aisle-song.svg",
+      "animation": null
+    },
+    {
+      "id": "popcorn-up",
+      "mood": "exciting",
+      "caption": "Overtime. The popcorn hit the ceiling.",
+      "still": "art/flavor/popcorn-up.svg",
+      "animation": null
+    },
+    {
+      "id": "roof-speck",
+      "mood": "exciting",
+      "caption": "A bright speck crossed the roof. The chat lost its mind.",
+      "still": "art/flavor/roof-speck.svg",
+      "animation": null
+    },
+    {
+      "id": "buzzer-ball",
+      "mood": "exciting",
+      "caption": "The ball left as the buzzer sang.",
+      "still": "art/flavor/buzzer-ball.svg",
+      "animation": null
+    }
+  ],
+  "mortality": {
+    "perSquare": null,
+    "annuity": {
+      "id": "2012-iar-2026",
+      "name": "2012 IAR",
+      "fullName": "2012 Individual Annuity Reserve Table, calendar year 2026",
+      "role": "Reserve table for an individual annuity. Not a pricing table. The 2012 IAM Basic table is the experience table. The 2012 IAM Period table is that basic table with the LATF load, about 10 percent lower qx through age 100. The 2012 IAR is the Period table projected with Scale G2.",
+      "year": 2026,
+      "formula": "q_x(2026) = q_x(2012 IAM Period) * (1 - G2_x)^14",
+      "blend": "Male and female rates are published separately. q is the 50/50 mean. SOA did not publish that mean.",
+      "youngAges": "Published from age 0. Ages 18 through 68 are copied from those columns. No splice.",
+      "source": "https://www.actuary.org/files/publications/Payout_Annuity_Report_09-28-11.pdf",
+      "sourceNote": "Payout Annuity Table Team, 2012 Individual Annuity Reserving Table, September 2011, Exhibit IV. SOA MORT 2585 and 2586 are the male and female 2012 IAM Period tables. MORT 2583 and 2584 are Scale G2. SOA page: https://www.soa.org/resources/experience-studies/2011/2012-ind-annuity-reserving-rpt/ . Checked October 2026: MORT has no 2020, 2024, or 2025 IAM, and the SOA tables page still lists this 2012 reserving table.",
+      "q": [
+        0.000247595,
+        0.000264095,
+        0.000278865,
+        0.00029407,
+        0.00030971,
+        0.000329255,
+        0.000347935,
+        0.00037008500000000003,
+        0.000395715,
+        0.00041222000000000003,
+        0.000425685,
+        0.00043785,
+        0.00045217999999999994,
+        0.00046564999999999996,
+        0.000474335,
+        0.00048085,
+        0.00048693,
+        0.0004938799999999999,
+        0.0005030049999999999,
+        0.00051473,
+        0.0005295,
+        0.000566425,
+        0.0006129,
+        0.000662855,
+        0.00071628,
+        0.000767105,
+        0.00081749,
+        0.00086831,
+        0.0009308649999999999,
+        0.001016,
+        0.00112546,
+        0.001250995,
+        0.00139781,
+        0.00155404,
+        0.001715225,
+        0.0018642250000000002,
+        0.00203114,
+        0.002178035,
+        0.0023786550000000004,
+        0.0025911,
+        0.00286924,
+        0.003145315,
+        0.003502495,
+        0.0039019399999999996,
+        0.004331755,
+        0.00478864,
+        0.00528617,
+        0.005838675,
+        0.006186135,
+        0.006602945,
+        0.007103885
+      ],
+      "male": [
+        0.00031188,
+        0.0003362,
+        0.00035966,
+        0.00038485,
+        0.00041092,
+        0.00044567,
+        0.00048129,
+        0.00052298,
+        0.00056903,
+        0.0005977,
+        0.00061681,
+        0.00063158,
+        0.00064374,
+        0.00065243,
+        0.00065503,
+        0.00065677,
+        0.00065677,
+        0.00065677,
+        0.00065677,
+        0.00065677,
+        0.00065677,
+        0.000695,
+        0.00074625,
+        0.00080446,
+        0.00086788,
+        0.00092869,
+        0.00099211,
+        0.001059,
+        0.00114501,
+        0.00126316,
+        0.00141345,
+        0.00158894,
+        0.00178701,
+        0.00197176,
+        0.0021799,
+        0.00234685,
+        0.00254278,
+        0.0027093,
+        0.00293827,
+        0.00315626,
+        0.00345834,
+        0.00374785,
+        0.00412417,
+        0.00454339,
+        0.00499255,
+        0.00547003,
+        0.00598717,
+        0.00656015,
+        0.00691786,
+        0.00734517,
+        0.00785664
+      ],
+      "female": [
+        0.00018331,
+        0.00019199,
+        0.00019807,
+        0.00020329,
+        0.0002085,
+        0.00021284,
+        0.00021458,
+        0.00021719,
+        0.0002224,
+        0.00022674,
+        0.00023456,
+        0.00024412,
+        0.00026062,
+        0.00027887,
+        0.00029364,
+        0.00030493,
+        0.00031709,
+        0.00033099,
+        0.00034924,
+        0.00037269,
+        0.00040223,
+        0.00043785,
+        0.00047955,
+        0.00052125,
+        0.00056468,
+        0.00060552,
+        0.00064287,
+        0.00067762,
+        0.00071672,
+        0.00076884,
+        0.00083747,
+        0.00091305,
+        0.00100861,
+        0.00113632,
+        0.00125055,
+        0.0013816,
+        0.0015195,
+        0.00164677,
+        0.00181904,
+        0.00202594,
+        0.00228014,
+        0.00254278,
+        0.00288082,
+        0.00326049,
+        0.00367096,
+        0.00410725,
+        0.00458517,
+        0.0051172,
+        0.00545441,
+        0.00586072,
+        0.00635113
+      ]
+    },
+    "life": {
+      "id": "2017-loaded-cso-50-male-ultimate",
+      "name": "2017 Loaded CSO",
+      "fullName": "2017 Loaded CSO Gender-Blended (50% Male) Composite ANB Ultimate",
+      "role": "Statutory valuation table for ordinary life insurance. Loaded, so these qx are the higher public rates. The 2015 VBT underneath is the experience table and is closer to pricing. Pricing practice and the statutory table differ. This series is the statutory one.",
+      "youngAges": "The workbook publishes attained ages 0 through 120. Ages 18 through 68 are the ultimate column. No splice.",
+      "comparison": "2015 VBT unismoke ANB ultimate rates start at attained age 25. A 50/50 of the published male and female ultimate rates is below this loaded CSO from 25 through 68. At 67 the CSO rate is 11.58 per thousand and that VBT mean is 9.985 per thousand. SOA did not publish the VBT mean. It is not a series in this spec.",
+      "source": "https://www.soa.org/globalassets/assets/files/research/exp-study/research-2016-08-cso-gender-blended-ultimate-table.xlsx",
+      "sourcePage": "https://www.soa.org/resources/experience-studies/2015/2017-cso-tables/",
+      "vbtSource": "https://www.soa.org/globalassets/assets/files/research/exp-study/2015-vbt-unismoke-alb-anb.xlsx",
+      "vbtPage": "https://www.soa.org/resources/experience-studies/2015/2015-valuation-basic-tables/",
+      "q": [
+        0.00058,
+        0.0006,
+        0.00062,
+        0.00063,
+        0.00065,
+        0.00067,
+        0.00071,
+        0.00073,
+        0.00073,
+        0.00072,
+        0.00072,
+        0.00072,
+        0.00074,
+        0.00078,
+        0.00083,
+        0.00089,
+        0.00097,
+        0.00105,
+        0.00116,
+        0.00127,
+        0.00138,
+        0.00149,
+        0.0016,
+        0.00171,
+        0.00179,
+        0.00184,
+        0.0019,
+        0.00196,
+        0.00205,
+        0.00214,
+        0.00224,
+        0.00234,
+        0.00248,
+        0.00264,
+        0.00283,
+        0.00305,
+        0.00329,
+        0.00357,
+        0.00388,
+        0.00424,
+        0.00464,
+        0.0051,
+        0.00563,
+        0.00624,
+        0.00692,
+        0.00769,
+        0.00855,
+        0.00948,
+        0.01049,
+        0.01158,
+        0.01277
+      ]
+    },
+    "bands": [
+      {
+        "id": "18-22",
+        "from": 18,
+        "to": 22,
+        "animation": "paper-boat"
+      },
+      {
+        "id": "23-27",
+        "from": 23,
+        "to": 27,
+        "animation": "streetlamp"
+      },
+      {
+        "id": "28-32",
+        "from": 28,
+        "to": 32,
+        "animation": "clock"
+      },
+      {
+        "id": "33-37",
+        "from": 33,
+        "to": 37,
+        "animation": "coat"
+      },
+      {
+        "id": "38-42",
+        "from": 38,
+        "to": 42,
+        "animation": "window"
+      },
+      {
+        "id": "43-47",
+        "from": 43,
+        "to": 47,
+        "animation": "leaf"
+      },
+      {
+        "id": "48-52",
+        "from": 48,
+        "to": 52,
+        "animation": "static"
+      },
+      {
+        "id": "53-57",
+        "from": 53,
+        "to": 57,
+        "animation": "chair"
+      },
+      {
+        "id": "58-62",
+        "from": 58,
+        "to": 62,
+        "animation": "doorway"
+      },
+      {
+        "id": "63-67",
+        "from": 63,
+        "to": 67,
+        "animation": "page"
+      },
+      {
+        "id": "68",
+        "from": 68,
+        "to": 68,
+        "animation": "aperture"
+      }
+    ]
+  }
+}
