@@ -1,8 +1,10 @@
 /**
  * Accumulation simulation. Reads spec/accumulation.json.
  * Deterministic: spins, risky choices, and flavor cards use separate streams.
- * The triangle sets income, the spending rate, and mortality.
- * Interest and decumulation are not in this version.
+ * The triangle sets income, the spending rate, and the death blend.
+ * Weights are inverse distance to the vertices.
+ * Interest is only the borrowing charge on negative savings.
+ * Decumulation is not in this version.
  * Death is on the spin stream, so answers do not move the wedge.
  */
 
@@ -65,24 +67,33 @@ export function validate(spec) {
   const triangle = spec.meta.triangle;
   if (!triangle) errors.push("missing triangle");
   else {
-    for (const key of ["incomePerAxis", "spendCenter", "spendPerAxis", "healthCostShare", "mortalityAbove", "mortalityBelow", "healthCostAbove", "healthCostBelow"]) {
+    for (const key of ["incomePerAxis", "spendCenter", "spendPerAxis", "healthCostShare", "healthCostAbove", "healthCostBelow", "borrowingRate"]) {
       if (!Number.isFinite(triangle[key]) || triangle[key] < 0) errors.push(`triangle ${key} must be a number`);
     }
   }
   const mortality = spec.mortality;
-  if (!mortality?.longer?.q || !mortality?.shorter?.q) errors.push("missing mortality series");
+  if (!mortality?.life?.q || !mortality?.annuity?.q) errors.push("missing mortality series");
   else {
     const span = ageEnd - ageStart + 1;
-    for (const name of ["longer", "shorter"]) {
+    for (const name of ["life", "annuity"]) {
       const series = mortality[name].q;
       if (series.length !== span) errors.push(`${name} q has ${series.length} rates, expected ${span}`);
       series.forEach((q, i) => {
         if (!Number.isFinite(q) || q <= 0 || q > 1) errors.push(`${name} q at ${ageStart + i} must be a death probability above 0`);
       });
     }
-    if (mortality.longer.q.length === mortality.shorter.q.length) {
-      mortality.longer.q.forEach((q, i) => {
-        if (!(mortality.shorter.q[i] > q)) errors.push(`shorter q at ${ageStart + i} must be above the longer table`);
+    if (mortality.life.q.length === mortality.annuity.q.length) {
+      mortality.annuity.q.forEach((q, i) => {
+        if (!(mortality.life.q[i] > q)) errors.push(`life q at ${ageStart + i} must be above the annuity table`);
+      });
+    }
+    const male = mortality.annuity.male;
+    const female = mortality.annuity.female;
+    if (male?.length === span && female?.length === span) {
+      mortality.annuity.q.forEach((q, i) => {
+        if (Math.abs(q - (male[i] + female[i]) / 2) > 1e-9) {
+          errors.push(`annuity q at ${ageStart + i} must be the 50/50 mean`);
+        }
       });
     }
     if (mortality.perSquare != null && typeof mortality.perSquare !== "object") {
@@ -115,26 +126,76 @@ export function axis(weight) {
   return (weight - 1 / 3) / (1 / 3);
 }
 
+const VERTEX_H = { x: 0, y: Math.sqrt(3) };
+const VERTEX_W = { x: 1, y: 0 };
+const VERTEX_F = { x: -1, y: 0 };
+const VERTEX_EPS = 1e-8;
+
+function positionXY(point) {
+  return {
+    x: point.h * VERTEX_H.x + point.w * VERTEX_W.x + point.f * VERTEX_F.x,
+    y: point.h * VERTEX_H.y + point.w * VERTEX_W.y + point.f * VERTEX_F.y,
+  };
+}
+
+export function attributeWeights(position) {
+  const point = parsePoint(position);
+  const xy = positionXY(point);
+  const rows = [
+    ["h", VERTEX_H],
+    ["w", VERTEX_W],
+    ["f", VERTEX_F],
+  ].map(([key, vertex]) => ({
+    key,
+    d: Math.hypot(xy.x - vertex.x, xy.y - vertex.y),
+  }));
+  const landed = rows.find((row) => row.d <= VERTEX_EPS);
+  if (landed) {
+    return {
+      h: landed.key === "h" ? 1 : 0,
+      w: landed.key === "w" ? 1 : 0,
+      f: landed.key === "f" ? 1 : 0,
+    };
+  }
+  const inv = rows.map((row) => ({ key: row.key, w: 1 / row.d }));
+  const sum = inv.reduce((total, row) => total + row.w, 0);
+  const weights = { h: 0, w: 0, f: 0 };
+  for (const row of inv) weights[row.key] = row.w / sum;
+  return weights;
+}
+
 export function triangleRates(spec, point) {
-  const weights = parsePoint(point);
+  const position = parsePoint(point);
+  const weights = attributeWeights(position);
   const table = spec.meta.triangle;
   const h = axis(weights.h);
   const w = axis(weights.w);
   const f = axis(weights.f);
   const income = 1 + table.incomePerAxis * w;
   const spend = table.spendCenter - table.spendPerAxis * f;
-  const mortality = h >= 0
-    ? 1 - table.mortalityAbove * h
-    : 1 + table.mortalityBelow * -h;
   const healthCost = h >= 0
     ? 1 - table.healthCostAbove * h
     : 1 + table.healthCostBelow * -h;
-  return { h: weights.h, w: weights.w, f: weights.f, axis: { h, w, f }, income, spend, mortality, healthCost };
+  return {
+    h: weights.h,
+    w: weights.w,
+    f: weights.f,
+    position,
+    axis: { h, w, f },
+    income,
+    spend,
+    healthCost,
+  };
 }
 
 export function budgetFactor(spec, rates) {
   const share = spec.meta.triangle.healthCostShare;
   return rates.spend * ((1 - share) + share * rates.healthCost);
+}
+
+export function borrowingCharge(cash, spec) {
+  if (!(cash < 0)) return 0;
+  return Math.round(-cash * spec.meta.triangle.borrowingRate);
 }
 
 export function annualExpenses(income, rates, spec) {
@@ -150,17 +211,20 @@ export function livingGap(spec, income, rates) {
   return Math.round(income * (center - budgetFactor(spec, rates)));
 }
 
-export function deathProbability(spec, age, mortalityMultiplier = 1) {
-  const q = spec.mortality.longer.q[age - spec.meta.ageStart];
-  if (!Number.isFinite(q)) throw new Error(`No death probability at ${age}`);
-  return Math.min(1, q * mortalityMultiplier);
+export function deathProbability(spec, age, axisH = 0) {
+  const t = (axisH + 1) / 2;
+  const i = age - spec.meta.ageStart;
+  const qLife = spec.mortality.life.q[i];
+  const qAnn = spec.mortality.annuity.q[i];
+  if (!Number.isFinite(qLife) || !Number.isFinite(qAnn)) throw new Error(`No death probability at ${age}`);
+  return Math.min(1, (1 - t) * qLife + t * qAnn);
 }
 
-export function lifeExpectancy(spec, age, mortalityMultiplier = 1) {
+export function lifeExpectancy(spec, age, axisH = 0) {
   let surv = 1;
   let years = 0;
   for (let a = age; a < spec.meta.ageEnd; a += 1) {
-    surv *= 1 - deathProbability(spec, a, mortalityMultiplier);
+    surv *= 1 - deathProbability(spec, a, axisH);
     years += surv;
   }
   return years;
@@ -187,18 +251,26 @@ export function portraitStats(spec, state) {
   const base = rates.income ? income / rates.income : 0;
   const centerIncome = Math.round(base);
   const centerRates = triangleRates(spec, centerPoint());
-  const centerMonthly = Math.round(annualExpenses(centerIncome, centerRates, spec) / 12);
-  const death = deathProbability(spec, age, rates.mortality);
-  const deathCenter = deathProbability(spec, age, 1);
+  const centerBill = annualExpenses(centerIncome, centerRates, spec);
+  const spending = annual;
+  const borrowing = borrowingCharge(state.cash, spec);
+  const bill = spending + borrowing;
+  const death = deathProbability(spec, age, rates.axis.h);
+  const deathCenter = deathProbability(spec, age, 0);
+  const qi = age - spec.meta.ageStart;
   return {
-    savings: Math.max(state.cash, 0),
+    savings: state.cash,
     income,
     monthly,
-    annual,
+    annual: bill,
+    spending,
+    borrowing,
     death,
-    years: lifeExpectancy(spec, age, rates.mortality),
+    qLife: spec.mortality.life.q[qi],
+    qAnn: spec.mortality.annuity.q[qi],
+    years: lifeExpectancy(spec, age, rates.axis.h),
     incomeDelta: income - centerIncome,
-    expenseDelta: monthly - centerMonthly,
+    expenseDelta: bill - centerBill,
     deathDelta: death - deathCenter,
     rates,
   };
@@ -258,10 +330,12 @@ function applyEffects(cash, salary, effect, rates) {
 
 function takeLiving(spec, cash, expenses, salary, rates) {
   const gap = livingGap(spec, salary, rates);
+  const borrow = borrowingCharge(cash, spec);
   return {
-    cash: cash + gap,
-    expenses: (expenses || 0) + (gap < 0 ? -gap : 0),
+    cash: cash + gap - borrow,
+    expenses: (expenses || 0) + (gap < 0 ? -gap : 0) + borrow,
     gap,
+    borrow,
   };
 }
 
@@ -497,7 +571,7 @@ function endDeath(spec, state, age, q) {
 export function spin(spec, state) {
   if (state.phase !== "play") throw new Error("Cannot spin right now");
   const age = currentSpace(spec, state).age;
-  const q = deathProbability(spec, age, triangleRates(spec, state.point).mortality);
+  const q = deathProbability(spec, age, triangleRates(spec, state.point).axis.h);
   const drawn = nextUnit(state.spinState);
   const stepped = { ...state, spinState: drawn.state };
   const outcome = outcomeFromUnit(drawn.unit, q);
