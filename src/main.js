@@ -4,6 +4,7 @@ import {
   createGame,
   currentSpace,
   deathProbability,
+  isAdvanced,
   portraitStats,
   resolveChoice,
   spin,
@@ -31,6 +32,13 @@ const minimapEl = document.querySelector("#minimap");
 const triangleEl = document.querySelector("#triangle");
 const shareSumEl = document.querySelector("#share-sum");
 const wedgeNote = document.querySelector("#wedge-note");
+const modeNote = document.querySelector("#mode-note");
+const retirementEl = document.querySelector("#retirement");
+const titleHeading = document.querySelector("#title");
+const dekEl = document.querySelector("#dek");
+const payLabel = document.querySelector("#pay-label");
+const cashLabel = document.querySelector("#cash-label");
+const setupLead = document.querySelector("#setup-lead");
 const deathEl = document.querySelector("#death");
 const deathStage = document.querySelector("#death-stage");
 const deathCaption = document.querySelector("#death-caption");
@@ -81,6 +89,12 @@ if (params.get("name")) gameNameInput.value = params.get("name");
 if (params.get("anim") === "0") animEl.checked = false;
 if (params.get("speed") === "1") speedEl.checked = true;
 
+function modeFromQuery() {
+  const mode = params.get("mode");
+  if (mode === "novice" || mode === "beginner" || mode === "advanced") return mode;
+  return null;
+}
+
 function pointFromQuery() {
   const corner = params.get("corner");
   if (CORNERS[corner]) return { ...CORNERS[corner] };
@@ -101,7 +115,7 @@ function money(n) {
 
 function choiceLine(space) {
   const prompt = space.choice.prompt;
-  const income = triangleRates(spec, state.point).income;
+  const income = isAdvanced(state) ? triangleRates(spec, state.point).income : 1;
   if (Math.abs(income - 1) < 1e-9) return prompt;
   const yes = space.choice.yes || {};
   const bits = [];
@@ -200,9 +214,9 @@ function savedName() {
 }
 
 function startPath(pathName) {
-  if (!gameName()) return;
+  if (!gameName() || !state?.mode) return;
   const seed = seedNumber();
-  state = choosePath(spec, createGame(spec, seed, state.point), pathName);
+  state = choosePath(spec, createGame(spec, seed, state.point, state.mode), pathName);
   pointLocked = true;
   inspect = null;
 }
@@ -273,7 +287,7 @@ function renderBoard() {
       begin.type = "button";
       begin.className = "path-begin";
       begin.textContent = name === "study" ? "Begin study" : "Begin work";
-      begin.disabled = !gameName();
+      begin.disabled = !gameName() || !state.mode;
       begin.addEventListener("click", () => {
         startPath(name);
         render();
@@ -354,13 +368,15 @@ function renderStory() {
   choicesEl.replaceChildren();
   if (!space) {
     showFlavor(null);
-    kickerEl.textContent = "Age 18 · choose";
-    titleEl.textContent = "Study, or work.";
-    const income = triangleRates(spec, state.point).income;
+    kickerEl.textContent = state.mode ? "Age 18 · choose" : "Pick a mode";
+    titleEl.textContent = state.mode ? "Study, or work." : "Novice, Beginner, or Advanced.";
+    const income = isAdvanced(state) ? triangleRates(spec, state.point).income : 1;
     const debt = Math.abs(spec.paths.study.spaces[0].cash);
     const studyPay = Math.round(spec.meta.studySalary * income);
     const workPay = Math.round(spec.meta.workSalary * income);
-    detailEl.textContent = `Study costs ${money(debt)} now and pays ${money(studyPay)} a year after 21. Work pays ${money(workPay)} from the first job. Same number of years either way.`;
+    detailEl.textContent = state.mode
+      ? `Study costs ${money(debt)} now and pays ${money(studyPay)} a year after 21. Work pays ${money(workPay)} from the first job. Same number of years either way.`
+      : "Novice is traditional Life. Beginner is Life$pan and plays the same way. Advanced keeps the triangle and the death wedge. Retirement is not built yet.";
     return;
   }
   const spun = lastSpin();
@@ -419,11 +435,59 @@ function chanceText(q) {
   return `${(q * 100).toFixed(3)}%`;
 }
 
+function applyModeChrome() {
+  const mode = state?.mode || "";
+  document.body.classList.toggle("mode-unset", !mode);
+  document.body.classList.toggle("mode-plain", mode === "novice" || mode === "beginner");
+  document.body.classList.toggle("mode-advanced", mode === "advanced");
+  const title = mode === "beginner" || mode === "advanced" ? "Life$pan" : "Life";
+  document.title = title;
+  titleHeading.textContent = title;
+  if (!mode) dekEl.textContent = "Pick Novice, Beginner, or Advanced.";
+  else if (mode === "beginner") dekEl.textContent = "A working life, ages 18–68.";
+  else dekEl.textContent = "A working life, ages 18–68.";
+  retirementEl.hidden = mode !== "beginner";
+  payLabel.textContent = mode === "advanced" ? "Income" : "Pay";
+  cashLabel.textContent = mode === "advanced" ? "Savings" : "Cash";
+  document.querySelectorAll("[data-mode]").forEach((btn) => {
+    btn.setAttribute("aria-pressed", btn.dataset.mode === mode ? "true" : "false");
+    btn.disabled = Boolean(state.path);
+  });
+  const notes = {
+    "": "Pick a mode. It locks when Study or Work begins.",
+    novice: "Traditional Life. Age, cash, and pay. The spinner is 1 through 10.",
+    beginner: "Life$pan. Same play as Novice. Retirement is named and not built yet.",
+    advanced: "Triangle, both mortality tables, the walker, and the death wedge.",
+  };
+  modeNote.textContent = notes[mode] || "";
+  if (!state.path) {
+    setupLead.textContent = mode === "advanced"
+      ? "Drag the point. Health, work, and frugality. You can still flip the mode. It locks when the path starts."
+      : "Pick a mode. It locks when Study or Work begins.";
+    if (mode === "novice" || mode === "beginner") {
+      setupLead.textContent = "You can still flip the mode. It locks when Study or Work begins.";
+    }
+  }
+}
+
 function renderStats() {
+  applyModeChrome();
   const space = currentSpace(spec, state);
-  const portrait = portraitStats(spec, state);
   const age = space ? space.age : spec.meta.ageStart;
   ageEl.textContent = space ? String(space.age) : "18";
+  playerEl.textContent = gameName() || "One player";
+  if (!isAdvanced(state)) {
+    savingsEl.textContent = money(state.cash);
+    savingsEl.className = "";
+    payEl.className = "";
+    payEl.textContent = money(state.salary);
+    drawWheel(0);
+    if (wedgeNote) wedgeNote.textContent = state.mode ? "Spinner 1 through 10." : "";
+    figureEl.innerHTML = "";
+    renderDeath();
+    return;
+  }
+  const portrait = portraitStats(spec, state);
   savingsEl.textContent = money(state.cash);
   savingsEl.className = state.cash < 0 ? "bad" : "good";
   payEl.className = portrait.income < 0 ? "bad" : "good";
@@ -433,7 +497,6 @@ function renderStats() {
   expensesEl.innerHTML = `${money(portrait.annual)}${deltaMark("expense", portrait.expenseDelta)}${borrowNote}`;
   deathChanceEl.innerHTML = `${chanceText(portrait.death)}${deltaMark("death", portrait.deathDelta)}<span class="qx-gap">${spec.mortality.life.name} ${chanceText(portrait.qLife)} · ${spec.mortality.annuity.name} ${chanceText(portrait.qAnn)}</span>`;
   yearsEl.textContent = portrait.years.toFixed(1);
-  playerEl.textContent = gameName() || "One player";
   const rates = portrait.rates;
   leverReadout.textContent = `Health ${rates.h.toFixed(2)} · Work ${rates.w.toFixed(2)} · Frugality ${rates.f.toFixed(2)}. Income ×${rates.income.toFixed(2)}. Spend ${(rates.spend * 100).toFixed(0)}%.`;
   const q = deathProbability(spec, age, rates.axis.h);
@@ -534,8 +597,8 @@ function drawTriangle() {
 }
 
 function setPoint(point) {
-  if (pointLocked || state?.path) return;
-  state = createGame(spec, seedNumber(), point);
+  if (pointLocked || state?.path || !isAdvanced(state)) return;
+  state = createGame(spec, seedNumber(), point, state.mode);
   render();
 }
 
@@ -685,8 +748,8 @@ function newGame() {
   inspect = null;
   resetNeedle();
   seedInput.value = String(mintSeed());
-  state = createGame(spec, seedNumber(), state?.point);
-  note("The point is open.");
+  state = createGame(spec, seedNumber(), { ...CORNERS.center }, null);
+  note("Pick a mode.");
   render();
 }
 
@@ -712,9 +775,16 @@ function renderControls() {
   if (state.phase === "choose") {
     actBtn.textContent = "Spin";
     actBtn.disabled = true;
-    readout.textContent = gameName()
-      ? "Choose a path. The wedge is already on the wheel."
-      : "Name the game, drag the point, then choose a path.";
+    if (!state.mode) readout.textContent = "Pick a mode, then name the game.";
+    else if (!isAdvanced(state)) {
+      readout.textContent = gameName()
+        ? "Choose a path. The spinner is 1 through 10."
+        : "Name the game, then choose a path.";
+    } else {
+      readout.textContent = gameName()
+        ? "Choose a path. The wedge is already on the wheel."
+        : "Name the game, drag the point, then choose a path.";
+    }
   } else if (state.phase === "choice") {
     actBtn.textContent = "Spin";
     actBtn.disabled = true;
@@ -752,9 +822,8 @@ function render() {
 function takeTurn() {
   if (locked) return;
   if (state.phase === "ended") {
-    const point = state.point;
-    state = createGame(spec, seedNumber(), point);
-    pointLocked = true;
+    state = createGame(spec, seedNumber(), { ...CORNERS.center }, null);
+    pointLocked = false;
     inspect = null;
     resetNeedle();
     render();
@@ -807,8 +876,17 @@ document.querySelectorAll("[data-corner]").forEach((btn) => {
   });
 });
 
+document.querySelectorAll("[data-mode]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    if (!spec || state?.path) return;
+    state = createGame(spec, seedNumber(), isAdvanced({ mode: btn.dataset.mode }) ? state.point : { ...CORNERS.center }, btn.dataset.mode);
+    note("");
+    render();
+  });
+});
+
 triangleEl.addEventListener("pointerdown", (event) => {
-  if (!spec || pointLocked || state?.path) return;
+  if (!spec || pointLocked || state?.path || !isAdvanced(state)) return;
   triangleEl.setPointerCapture(event.pointerId);
   const place = (ev) => {
     const spot = svgPoint(ev);
@@ -855,8 +933,8 @@ if (!specRes.ok) {
 } else {
   spec = await specRes.json();
   fineEl.textContent = `${spec.meta.rules.join(" ")} Amounts, the triangle, and both mortality series live in the board spec. One player. Stats are public.`;
-  state = createGame(spec, seedNumber(), pointFromQuery());
+  state = createGame(spec, seedNumber(), pointFromQuery(), modeFromQuery());
   const preset = params.get("path");
-  if ((preset === "study" || preset === "work") && gameName()) startPath(preset);
+  if ((preset === "study" || preset === "work") && gameName() && state.mode) startPath(preset);
   render();
 }
