@@ -95,7 +95,7 @@ function pointFromQuery() {
 }
 
 function money(n) {
-  const sign = n < 0 ? "\u2212" : "";
+  const sign = n < 0 ? "−" : "";
   return `${sign}$${Math.abs(n).toLocaleString("en-US")}`;
 }
 
@@ -225,7 +225,7 @@ function logLine(entry) {
   if (entry.t === "spin") {
     const stop = entry.discarded ? `, stop, ${entry.discarded} unused` : "";
     const pay = entry.paydayCash ? `, payday ${money(entry.paydayCash)}` : "";
-    return `${entry.n}. Spin ${entry.roll}. ${entry.fromAge} \u2192 ${entry.toAge}${stop}${pay}. ${entry.title}. Cash ${money(entry.cash)}.`;
+    return `${entry.n}. Spin ${entry.roll}. ${entry.fromAge} → ${entry.toAge}${stop}${pay}. ${entry.title}. Cash ${money(entry.cash)}.`;
   }
   if (entry.t === "resolve") {
     const name = entry.flavor ? entry.flavor.caption : entry.title;
@@ -354,7 +354,7 @@ function renderStory() {
   choicesEl.replaceChildren();
   if (!space) {
     showFlavor(null);
-    kickerEl.textContent = "Age 18 \u00b7 choose";
+    kickerEl.textContent = "Age 18 · choose";
     titleEl.textContent = "Study, or work.";
     const income = triangleRates(spec, state.point).income;
     const debt = Math.abs(spec.paths.study.spaces[0].cash);
@@ -372,7 +372,7 @@ function renderStory() {
   const card = flavorSeen(space);
   showFlavor(card);
   if (card) bits.push(moodLine[card.mood] || card.mood);
-  kickerEl.textContent = bits.join(" \u00b7 ");
+  kickerEl.textContent = bits.join(" · ");
   titleEl.textContent = card ? card.caption : space.title;
   const extra = [];
   if (!inspect && spun && spun.spaceId === space.id && spun.paydayCash) {
@@ -410,7 +410,7 @@ function deltaMark(kind, delta) {
   if (!Number.isFinite(delta) || Math.abs(delta) < eps) return "";
   const plus = delta > 0;
   const good = kind === "income" ? plus : !plus;
-  const sign = plus ? "+" : "\u2212";
+  const sign = plus ? "+" : "−";
   const word = `${good ? "good" : "bad"}, ${plus ? "above" : "below"} the center`;
   return `<i class="delta ${good ? "good" : "bad"}" aria-label="${word}">${sign}</i>`;
 }
@@ -431,11 +431,11 @@ function renderStats() {
   const borrowNote = portrait.borrowing > 0 ? `<span class="borrow-note">includes 4% borrowing</span>` : "";
   expensesEl.className = "bad";
   expensesEl.innerHTML = `${money(portrait.annual)}${deltaMark("expense", portrait.expenseDelta)}${borrowNote}`;
-  deathChanceEl.innerHTML = `${chanceText(portrait.death)}${deltaMark("death", portrait.deathDelta)}<span class="qx-gap">${spec.mortality.life.name} ${chanceText(portrait.qLife)} \u00b7 ${spec.mortality.annuity.name} ${chanceText(portrait.qAnn)}</span>`;
+  deathChanceEl.innerHTML = `${chanceText(portrait.death)}${deltaMark("death", portrait.deathDelta)}<span class="qx-gap">${spec.mortality.life.name} ${chanceText(portrait.qLife)} · ${spec.mortality.annuity.name} ${chanceText(portrait.qAnn)}</span>`;
   yearsEl.textContent = portrait.years.toFixed(1);
   playerEl.textContent = gameName() || "One player";
   const rates = portrait.rates;
-  leverReadout.textContent = `Health ${rates.h.toFixed(2)} \u00b7 Work ${rates.w.toFixed(2)} \u00b7 Frugality ${rates.f.toFixed(2)}. Income \u00d7${rates.income.toFixed(2)}. Spend ${(rates.spend * 100).toFixed(0)}%.`;
+  leverReadout.textContent = `Health ${rates.h.toFixed(2)} · Work ${rates.w.toFixed(2)} · Frugality ${rates.f.toFixed(2)}. Income ×${rates.income.toFixed(2)}. Spend ${(rates.spend * 100).toFixed(0)}%.`;
   const q = deathProbability(spec, age, rates.axis.h);
   drawWheel(q);
   if (wedgeNote) wedgeNote.textContent = `Death wedge ${chanceText(q)} of the circle.`;
