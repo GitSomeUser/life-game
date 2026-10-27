@@ -3,7 +3,7 @@
  * Deterministic: spins, risky choices, and flavor cards use separate streams.
  * The triangle sets income, the spending rate, and the death blend.
  * Weights are inverse distance to the vertices.
- * Interest is only the borrowing charge on negative savings.
+ * Entirety pays 4% a year on positive savings and charges 4% when savings are negative.
  * Decumulation is not in this version.
  * Death is on the spin stream, so answers do not move the wedge.
  * Life and Life$pan ignore the triangle, the wedge, and borrowing.
@@ -85,7 +85,7 @@ export function validate(spec) {
   const triangle = spec.meta.triangle;
   if (!triangle) errors.push("missing triangle");
   else {
-    for (const key of ["incomePerAxis", "spendCenter", "spendPerAxis", "healthCostShare", "healthCostAbove", "healthCostBelow", "borrowingRate"]) {
+    for (const key of ["incomePerAxis", "spendCenter", "spendPerAxis", "healthCostShare", "healthCostAbove", "healthCostBelow", "borrowingRate", "interestRate"]) {
       if (!Number.isFinite(triangle[key]) || triangle[key] < 0) errors.push(`triangle ${key} must be a number`);
     }
   }
@@ -231,6 +231,11 @@ export function borrowingCharge(cash, spec) {
   return Math.round(-cash * spec.meta.triangle.borrowingRate);
 }
 
+export function savingsInterest(cash, spec) {
+  if (!(cash > 0)) return 0;
+  return Math.round(cash * spec.meta.triangle.interestRate);
+}
+
 export function annualExpenses(income, rates, spec) {
   return Math.round(income * budgetFactor(spec, rates));
 }
@@ -287,6 +292,7 @@ export function portraitStats(spec, state) {
   const centerBill = annualExpenses(centerIncome, centerRates, spec);
   const spending = annual;
   const borrowing = isEntirety(state) ? borrowingCharge(state.cash, spec) : 0;
+  const interest = isEntirety(state) ? savingsInterest(state.cash, spec) : 0;
   const bill = spending + borrowing;
   const death = deathProbability(spec, age, rates.axis.h);
   const deathCenter = deathProbability(spec, age, 0);
@@ -298,6 +304,7 @@ export function portraitStats(spec, state) {
     annual: bill,
     spending,
     borrowing,
+    interest,
     death,
     qLife: spec.mortality.life.q[qi],
     qAnn: spec.mortality.annuity.q[qi],
@@ -362,15 +369,17 @@ function applyEffects(cash, salary, effect, rates) {
   return { cash, salary, cashDelta, salaryDelta };
 }
 
-function takeLiving(spec, cash, expenses, salary, rates, advanced) {
-  if (!advanced) return { cash, expenses: expenses || 0, gap: 0, borrow: 0 };
+function takeLiving(spec, cash, expenses, salary, rates, entirety) {
+  if (!entirety) return { cash, expenses: expenses || 0, gap: 0, borrow: 0, interest: 0 };
   const gap = livingGap(spec, salary, rates);
   const borrow = borrowingCharge(cash, spec);
+  const interest = savingsInterest(cash, spec);
   return {
-    cash: cash + gap - borrow,
+    cash: cash + gap + interest - borrow,
     expenses: (expenses || 0) + (gap < 0 ? -gap : 0) + borrow,
     gap,
     borrow,
+    interest,
   };
 }
 
