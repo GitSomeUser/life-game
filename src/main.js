@@ -4,10 +4,11 @@ import {
   createGame,
   currentSpace,
   deathProbability,
-  isAdvanced,
+  isEntirety,
   portraitStats,
   resolveChoice,
   spin,
+  track,
   triangleRates,
 } from "./engine.mjs";
 
@@ -65,6 +66,10 @@ let needleTurns = 0;
 let shownSpin = 0;
 let locked = false;
 let pointLocked = false;
+let playerSlot = 0;
+let audioCtx = null;
+let climbShift = null;
+let climbSize = "";
 
 const H = { x: 130, y: 22 };
 const W = { x: 230, y: 195.205 };
@@ -90,8 +95,9 @@ if (params.get("anim") === "0") animEl.checked = false;
 if (params.get("speed") === "1") speedEl.checked = true;
 
 function modeFromQuery() {
-  const mode = params.get("mode");
-  if (mode === "novice" || mode === "beginner" || mode === "advanced") return mode;
+  const alias = { novice: "life", beginner: "lifespan", advanced: "entirety" };
+  const mode = alias[params.get("mode")] || params.get("mode");
+  if (mode === "life" || mode === "lifespan" || mode === "entirety") return mode;
   return null;
 }
 
@@ -115,7 +121,7 @@ function money(n) {
 
 function choiceLine(space) {
   const prompt = space.choice.prompt;
-  const income = isAdvanced(state) ? triangleRates(spec, state.point).income : 1;
+  const income = isEntirety(state) ? triangleRates(spec, state.point).income : 1;
   if (Math.abs(income - 1) < 1e-9) return prompt;
   const yes = space.choice.yes || {};
   const bits = [];
@@ -219,6 +225,7 @@ function startPath(pathName) {
   state = choosePath(spec, createGame(spec, seed, state.point, state.mode), pathName);
   pointLocked = true;
   inspect = null;
+  playBeat("land");
 }
 
 function lastSpin() {
@@ -265,72 +272,129 @@ function spaceButton(space, mode) {
   return btn;
 }
 
-function renderBoard() {
-  const wide = window.innerWidth >= 900;
-  cols = wide ? 10 : 5;
-  boardEl.replaceChildren();
-  const here = state.path ? currentSpace(spec, state) : null;
+function climbPoints(width) {
+  const pad = 78;
+  const usable = Math.max(220, width - pad * 2);
+  const per = 6;
+  const points = [];
+  spec.paths.study.spaces.forEach((space, i) => {
+    points.push({ space, lane: "study", x: pad + usable * 0.16, row: i });
+  });
+  spec.paths.work.spaces.forEach((space, i) => {
+    points.push({ space, lane: "work", x: pad + usable * 0.84, row: i });
+  });
+  spec.paths.shared.spaces.forEach((space, i) => {
+    const band = Math.floor(i / per);
+    const along = i % per;
+    const dir = band % 2 === 0 ? along : per - 1 - along;
+    points.push({
+      space,
+      lane: "shared",
+      x: pad + (dir / (per - 1)) * usable,
+      row: 4 + band,
+    });
+  });
+  const rowH = 72;
+  const maxRow = Math.max(...points.map((point) => point.row));
+  points.forEach((point) => {
+    point.y = (maxRow - point.row) * rowH + 48;
+  });
+  return { points, height: maxRow * rowH + 140, width };
+}
 
-  const fork = document.createElement("div");
-  fork.className = "fork";
-  for (const name of ["study", "work"]) {
-    const path = spec.paths[name];
-    const wrap = document.createElement("section");
-    wrap.className = "path";
-    if (state.path && state.path !== name) wrap.classList.add("off");
-    const label = document.createElement("p");
-    label.className = "path-name";
-    label.textContent = path.label;
-    wrap.append(label);
-    if (state.phase === "choose") {
-      const begin = document.createElement("button");
-      begin.type = "button";
-      begin.className = "path-begin";
-      begin.textContent = name === "study" ? "Begin study" : "Begin work";
-      begin.disabled = !gameName() || !state.mode;
-      begin.addEventListener("click", () => {
-        startPath(name);
+function routePath(points, lane) {
+  const rows = points.filter((point) => point.lane === lane).sort((a, b) => a.space.age - b.space.age);
+  return rows.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+}
+
+function renderBoard() {
+  const here = state.path ? currentSpace(spec, state) : null;
+  const viewW = Math.max(boardEl.clientWidth || 0, boardEl.parentElement?.clientWidth || 0, 360);
+  const viewH = Math.max(boardEl.clientHeight || 0, boardEl.parentElement?.clientHeight || 0, 280);
+  climbSize = `${viewW}x${viewH}`;
+  const layout = climbPoints(viewW);
+  const anchor = here
+    ? layout.points.find((point) => point.space.id === here.id)
+    : layout.points.find((point) => point.lane === "work" && point.space.age === 18);
+  const shift = (viewH - 108) - (anchor?.y || 0);
+  const snap = !motionOn();
+
+  const view = document.createElement("div");
+  view.className = snap ? "climb-view snap" : "climb-view";
+  const track = document.createElement("div");
+  track.className = "climb-track";
+  track.style.height = `${layout.height}px`;
+  const face = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  face.setAttribute("class", "climb-mountain");
+  face.setAttribute("viewBox", `0 0 ${viewW} ${layout.height}`);
+  face.setAttribute("width", String(viewW));
+  face.setAttribute("height", String(layout.height));
+  face.innerHTML = `<polygon class="face" points="0,${layout.height} ${Math.round(viewW * 0.08)},${layout.height} ${Math.round(viewW * 0.9)},28 ${viewW},28 ${viewW},${layout.height}"/>`;
+  const route = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  route.setAttribute("class", "climb-route");
+  route.setAttribute("viewBox", `0 0 ${viewW} ${layout.height}`);
+  route.setAttribute("width", String(viewW));
+  route.setAttribute("height", String(layout.height));
+  const studyOff = state.path && state.path !== "study" ? " off" : "";
+  const workOff = state.path && state.path !== "work" ? " off" : "";
+  const studyPts = routePath(layout.points, "study");
+  const workPts = routePath(layout.points, "work");
+  const sharedPts = routePath(layout.points, "shared");
+  const joinStudy = layout.points.find((point) => point.lane === "study" && point.space.age === 21);
+  const joinWork = layout.points.find((point) => point.lane === "work" && point.space.age === 21);
+  const merge = layout.points.find((point) => point.lane === "shared");
+  const join = (from) => from && merge ? ` M${from.x.toFixed(1)},${from.y.toFixed(1)} L${merge.x.toFixed(1)},${merge.y.toFixed(1)}` : "";
+  route.innerHTML = `<path class="${studyOff.trim()}" d="M${studyPts.replace(/ /g, " L")}${join(joinStudy)}"/><path class="${workOff.trim()}" d="M${workPts.replace(/ /g, " L")}${join(joinWork)}"/><path d="M${sharedPts.replace(/ /g, " L")}"/>`;
+  track.append(face, route);
+
+  for (const point of layout.points) {
+    let mode = "future";
+    if (here && point.space.id === here.id) mode = "now";
+    else if (state.path && point.lane === state.path && here && point.space.age < here.age) mode = "passed";
+    else if (state.path === "study" || state.path === "work") {
+      if (point.lane !== "shared" && point.lane !== state.path) mode = "off";
+      else if (point.lane === "shared" && here && point.space.age < here.age) mode = "passed";
+    }
+    const btn = spaceButton(point.space, mode === "off" ? "future" : mode);
+    if (mode === "off") btn.classList.add("off");
+    btn.style.left = `${point.x}px`;
+    btn.style.top = `${point.y}px`;
+    if (state.phase === "choose" && point.space.age === 18 && (point.lane === "study" || point.lane === "work")) {
+      const tag = document.createElement("span");
+      tag.className = "begin-tag";
+      tag.textContent = point.lane === "study" ? "Begin study" : "Begin work";
+      btn.append(tag);
+      btn.disabled = !gameName() || !state.mode;
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (!gameName() || !state.mode) return;
+        startPath(point.lane);
         render();
       });
-      wrap.append(begin);
     }
-    const row = document.createElement("div");
-    row.className = "row";
-    for (const space of path.spaces) {
-      let mode = "future";
-      if (here && space.id === here.id) mode = "now";
-      else if (state.path === name && here && space.age < here.age) mode = "passed";
-      row.append(spaceButton(space, mode));
-    }
-    wrap.append(row);
-    fork.append(wrap);
+    track.append(btn);
   }
-  boardEl.append(fork);
 
-  const merge = document.createElement("p");
-  merge.className = "merge";
-  merge.textContent = "From 22 the paths share one track";
-  boardEl.append(merge);
-
-  const shared = document.createElement("div");
-  shared.className = "shared";
-  shared.style.gridTemplateColumns = `repeat(${cols}, 116px)`;
-  spec.paths.shared.spaces.forEach((space, i) => {
-    const row = Math.floor(i / cols);
-    const along = i % cols;
-    const col = row % 2 === 0 ? along + 1 : cols - along;
-    let mode = "future";
-    if (here && space.id === here.id) mode = "now";
-    else if (here && here.age >= 22 && space.age < here.age) mode = "passed";
-    const btn = spaceButton(space, mode);
-    btn.style.gridColumn = String(col);
-    btn.style.gridRow = String(row + 1);
-    shared.append(btn);
-  });
-  boardEl.append(shared);
-  queueMicrotask(() => {
-    boardEl.querySelector(".space.now")?.scrollIntoView({ inline: "center", block: "nearest" });
-  });
+  const walker = document.createElement("div");
+  walker.className = "climb-walker";
+  walker.innerHTML = `<svg viewBox="0 0 64 72" aria-hidden="true"><circle cx="30" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M30 18 L26 36 L14 62 M26 36 L40 58 M22 28 L44 34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  view.append(track, walker);
+  boardEl.className = "climb";
+  boardEl.replaceChildren(view);
+  const apply = () => {
+    track.style.transform = `translateY(${shift}px)`;
+  };
+  if (!snap && climbShift != null && climbShift !== shift) {
+    track.style.transition = "none";
+    track.style.transform = `translateY(${climbShift}px)`;
+    requestAnimationFrame(() => {
+      track.style.transition = "";
+      apply();
+    });
+  } else {
+    apply();
+  }
+  climbShift = shift;
 }
 
 const moodLine = {
@@ -369,14 +433,14 @@ function renderStory() {
   if (!space) {
     showFlavor(null);
     kickerEl.textContent = state.mode ? "Age 18 · choose" : "Pick a mode";
-    titleEl.textContent = state.mode ? "Study, or work." : "Novice, Beginner, or Advanced.";
-    const income = isAdvanced(state) ? triangleRates(spec, state.point).income : 1;
+    titleEl.textContent = state.mode ? "Study, or work." : "Life, Life$pan, or Entirety.";
+    const income = isEntirety(state) ? triangleRates(spec, state.point).income : 1;
     const debt = Math.abs(spec.paths.study.spaces[0].cash);
     const studyPay = Math.round(spec.meta.studySalary * income);
     const workPay = Math.round(spec.meta.workSalary * income);
     detailEl.textContent = state.mode
       ? `Study costs ${money(debt)} now and pays ${money(studyPay)} a year after 21. Work pays ${money(workPay)} from the first job. Same number of years either way.`
-      : "Novice is traditional Life. Beginner is Life$pan and plays the same way. Advanced keeps the triangle and the death wedge. Retirement is not built yet.";
+      : "Life is the traditional game. Life$pan is the entire life. Entirety keeps the triangle and the death wedge. Retirement is not built yet.";
     return;
   }
   const spun = lastSpin();
@@ -438,36 +502,78 @@ function chanceText(q) {
 function applyModeChrome() {
   const mode = state?.mode || "";
   document.body.classList.toggle("mode-unset", !mode);
-  document.body.classList.toggle("mode-plain", mode === "novice" || mode === "beginner");
-  document.body.classList.toggle("mode-advanced", mode === "advanced");
-  const title = mode === "beginner" || mode === "advanced" ? "Life$pan" : "Life";
+  document.body.classList.toggle("mode-plain", mode === "life" || mode === "lifespan");
+  document.body.classList.toggle("mode-entirety", mode === "entirety");
+  document.body.classList.toggle("path-on", Boolean(state?.path));
+  const title = mode === "lifespan" ? "Life$pan" : mode === "entirety" ? "Entirety" : "Life";
   document.title = title;
   titleHeading.textContent = title;
-  if (!mode) dekEl.textContent = "Pick Novice, Beginner, or Advanced.";
-  else if (mode === "beginner") dekEl.textContent = "A working life, ages 18–68.";
+  if (!mode) dekEl.textContent = "Pick Life, Life$pan, or Entirety.";
+  else if (mode === "lifespan") dekEl.textContent = "The entire life, ages 18–68.";
+  else if (mode === "entirety") dekEl.textContent = "The entire life with realism, ages 18–68.";
   else dekEl.textContent = "A working life, ages 18–68.";
-  retirementEl.hidden = mode !== "beginner";
-  payLabel.textContent = mode === "advanced" ? "Income" : "Pay";
-  cashLabel.textContent = mode === "advanced" ? "Savings" : "Cash";
+  retirementEl.hidden = mode !== "lifespan";
+  payLabel.textContent = mode === "entirety" ? "Income" : "Pay";
+  cashLabel.textContent = mode === "entirety" ? "Savings" : "Cash";
   document.querySelectorAll("[data-mode]").forEach((btn) => {
     btn.setAttribute("aria-pressed", btn.dataset.mode === mode ? "true" : "false");
     btn.disabled = Boolean(state.path);
   });
   const notes = {
-    "": "Pick a mode. It locks when Study or Work begins.",
-    novice: "Traditional Life. Age, cash, and pay. The spinner is 1 through 10.",
-    beginner: "Life$pan. Same play as Novice. Retirement is named and not built yet.",
-    advanced: "Triangle, both mortality tables, the walker, and the death wedge.",
+    "": "",
+    life: "Traditional Game of Life. Age, cash, and pay. The spinner is 1 through 10.",
+    lifespan: "",
+    entirety: "Triangle during setup. Both mortality tables, the walker, income, expenses, and savings.",
   };
   modeNote.textContent = notes[mode] || "";
   if (!state.path) {
-    setupLead.textContent = mode === "advanced"
-      ? "Drag the point. Health, work, and frugality. You can still flip the mode. It locks when the path starts."
-      : "Pick a mode. It locks when Study or Work begins.";
-    if (mode === "novice" || mode === "beginner") {
+    if (mode === "entirety") {
+      setupLead.textContent = "Drag the point. The triangle hides when Study or Work begins.";
+    } else if (mode === "life" || mode === "lifespan") {
       setupLead.textContent = "You can still flip the mode. It locks when Study or Work begins.";
+    } else {
+      setupLead.textContent = "Pick Life, Life$pan, or Entirety.";
     }
   }
+  const roster = playerRoster();
+  const slot = roster[playerSlot] || roster[0];
+  playerEl.textContent = slot.name;
+  const countEl = document.querySelector("#player-count");
+  if (countEl) countEl.textContent = `${playerSlot + 1} of ${roster.length}`;
+}
+
+function playerRoster() {
+  return [{ name: gameName() || "One player" }];
+}
+
+function cyclePlayer(dir) {
+  const roster = playerRoster();
+  playerSlot = (playerSlot + dir + roster.length) % roster.length;
+  applyModeChrome();
+}
+
+function playBeat(kind = "land") {
+  if (speedEl.checked || !animEl.checked) return;
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  audioCtx = audioCtx || new Ctx();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  const t = audioCtx.currentTime;
+  const notes = kind === "death" ? [294, 220] : [196, 247, 294];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "triangle";
+    osc.frequency.value = freq;
+    const start = t + i * 0.09;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.07, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(start);
+    osc.stop(start + 0.18);
+  });
 }
 
 function renderStats() {
@@ -475,8 +581,7 @@ function renderStats() {
   const space = currentSpace(spec, state);
   const age = space ? space.age : spec.meta.ageStart;
   ageEl.textContent = space ? String(space.age) : "18";
-  playerEl.textContent = gameName() || "One player";
-  if (!isAdvanced(state)) {
+  if (!isEntirety(state)) {
     savingsEl.textContent = money(state.cash);
     savingsEl.className = "";
     payEl.className = "";
@@ -597,7 +702,7 @@ function drawTriangle() {
 }
 
 function setPoint(point) {
-  if (pointLocked || state?.path || !isAdvanced(state)) return;
+  if (pointLocked || state?.path || !isEntirety(state)) return;
   state = createGame(spec, seedNumber(), point, state.mode);
   render();
 }
@@ -639,29 +744,16 @@ function miniMark(space, mode) {
 function renderMinimap() {
   minimapEl.replaceChildren();
   const here = state.path ? currentSpace(spec, state) : null;
-  const fork = document.createElement("div");
-  fork.className = "mini-fork";
-  for (const name of ["study", "work"]) {
-    const path = document.createElement("div");
-    path.className = "mini-path";
-    if (state.path && state.path !== name) path.classList.add("off");
-    for (const space of spec.paths[name].spaces) {
-      let mode = "future";
-      if (here && space.id === here.id) mode = "now";
-      else if (state.path === name && here && space.age < here.age) mode = "passed";
-      path.append(miniMark(space, mode));
-    }
-    fork.append(path);
-  }
-  const shared = document.createElement("div");
-  shared.className = "mini-shared";
-  for (const space of spec.paths.shared.spaces) {
+  const spaces = state.path ? track(spec, state.path) : track(spec, "work");
+  const col = document.createElement("div");
+  col.className = "mini-climb";
+  for (const space of spaces) {
     let mode = "future";
     if (here && space.id === here.id) mode = "now";
-    else if (here && here.age >= 22 && space.age < here.age) mode = "passed";
-    shared.append(miniMark(space, mode));
+    else if (here && space.age < here.age) mode = "passed";
+    col.append(miniMark(space, mode));
   }
-  minimapEl.append(fork, shared);
+  minimapEl.append(col);
 }
 
 function renderShares() {
@@ -776,7 +868,7 @@ function renderControls() {
     actBtn.textContent = "Spin";
     actBtn.disabled = true;
     if (!state.mode) readout.textContent = "Pick a mode, then name the game.";
-    else if (!isAdvanced(state)) {
+    else if (!isEntirety(state)) {
       readout.textContent = gameName()
         ? "Choose a path. The spinner is 1 through 10."
         : "Name the game, then choose a path.";
@@ -838,6 +930,7 @@ function takeTurn() {
   }
   locked = motionOn();
   render();
+  if (!speedEl.checked) playBeat(state.death ? "death" : "land");
   if (locked) {
     setTimeout(() => {
       locked = false;
@@ -879,14 +972,14 @@ document.querySelectorAll("[data-corner]").forEach((btn) => {
 document.querySelectorAll("[data-mode]").forEach((btn) => {
   btn.addEventListener("click", () => {
     if (!spec || state?.path) return;
-    state = createGame(spec, seedNumber(), isAdvanced({ mode: btn.dataset.mode }) ? state.point : { ...CORNERS.center }, btn.dataset.mode);
+    state = createGame(spec, seedNumber(), isEntirety({ mode: btn.dataset.mode }) ? state.point : { ...CORNERS.center }, btn.dataset.mode);
     note("");
     render();
   });
 });
 
 triangleEl.addEventListener("pointerdown", (event) => {
-  if (!spec || pointLocked || state?.path || !isAdvanced(state)) return;
+  if (!spec || pointLocked || state?.path || !isEntirety(state)) return;
   triangleEl.setPointerCapture(event.pointerId);
   const place = (ev) => {
     const spot = svgPoint(ev);
@@ -912,6 +1005,8 @@ gameNameInput.addEventListener("input", () => {
   render();
 });
 
+document.querySelector("#player-prev").addEventListener("click", () => cyclePlayer(-1));
+document.querySelector("#player-next").addEventListener("click", () => cyclePlayer(1));
 saveBtn.addEventListener("click", saveGame);
 resumeBtn.addEventListener("click", resumeGame);
 newGameBtn.addEventListener("click", newGame);
@@ -923,6 +1018,15 @@ window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(renderBoard, 150);
 });
+
+new ResizeObserver(() => {
+  if (!spec || !state) return;
+  const viewW = boardEl.clientWidth || boardEl.parentElement?.clientWidth || 0;
+  const viewH = boardEl.clientHeight || boardEl.parentElement?.clientHeight || 0;
+  const key = `${viewW}x${viewH}`;
+  if (!viewH || key === climbSize) return;
+  renderBoard();
+}).observe(boardEl);
 
 drawWheel(0);
 
