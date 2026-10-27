@@ -1,7 +1,7 @@
 {
   "meta": {
     "stage": 2,
-    "version": "0.6.0",
+    "version": "0.7.0",
     "ageStart": 18,
     "ageEnd": 68,
     "yearsPerSpace": 1,
@@ -13,22 +13,22 @@
     "studySalary": 68000,
     "workSalary": 48000,
     "rules": [
-      "Before the path starts, pick Novice, Beginner, or Advanced. The choice locks when Study or Work begins.",
-      "Novice is traditional Life: age, cash, and pay. The spinner is 1 through 10. No triangle, no death wedge, no mortality tables, no walker, and no borrowing charge.",
-      "Beginner is Life$pan and plays like Novice. Retirement is named on the screen and is not built in this version.",
-      "Advanced keeps the Stage 2 board: the triangle, both mortality tables, the walker, income, expenses, savings, and the death wedge.",
-      "On Advanced, the spinner shows 1 through 10, plus a death wedge. The wedge is this year's death probability, as a fraction of the circle. Landing in it ends the life on the current square. No numbered move.",
+      "Before the path starts, pick Life, Life$pan, or Entirety. The choice locks when Study or Work begins.",
+      "Life is the traditional Game of Life: age, cash, and pay. The spinner is 1 through 10. No triangle, no death wedge, no mortality tables, no walker encoding, and no borrowing charge.",
+      "Life$pan is the entire life and plays like Life. Retirement is named on the screen and is not built in this version.",
+      "Entirety is the entire life with realism: the triangle, both mortality tables, the walker, income, expenses, savings, and the death wedge.",
+      "On Entirety, the spinner shows 1 through 10, plus a death wedge. The wedge is this year's death probability, as a fraction of the circle. Landing in it ends the life on the current square. No numbered move.",
       "You resolve the space you land on. Spaces you pass do not fire, except Payday.",
       "Payday adds your current salary when you land on it or pass it.",
       "A stop ends the move even if steps remain. Then you spin again.",
       "Ages 18 to 21 are a fork. Study and Work each have four spaces, then one shared track from 22 to 68.",
-      "At 68 the working track ends. Decumulation is not in this version. On Advanced, the only interest is the borrowing charge while savings are negative. Novice and Beginner do not charge it. Retirement spaces are not in this version.",
+      "At 68 the working track ends. The climb has no downslope. Decumulation is not in this version. On Entirety, the only interest is the borrowing charge while savings are negative. Life and Life$pan do not charge it. Retirement spaces are not in this version.",
       "One point in the triangle sets health, work, and frugality. Weights are inverse distance to the vertices, so an edge does not freeze the far one. It locks when the path starts. The center is still one third."
     ],
     "modes": {
-      "novice": "Traditional Life. Age, cash, and pay. No triangle, no death wedge, no mortality tables, no walker, and no borrowing charge.",
-      "beginner": "Life$pan. The board plays like Novice. Retirement is named and is not built in this version.",
-      "advanced": "The Stage 2 board. Triangle, 2012 IAR and 2017 Loaded CSO, the side-view walker, income, expenses, savings, and the death wedge."
+      "life": "Traditional Game of Life. Age, cash, and pay. No triangle, no death wedge, no mortality tables, no walker encoding, and no borrowing charge.",
+      "lifespan": "The entire life. The board plays like Life. Retirement is named and is not built in this version.",
+      "entirety": "The entire life with realism. Triangle, 2012 IAR and 2017 Loaded CSO, the side-view walker, income, expenses, savings, and the death wedge."
     },
     "home": "downPayment",
     "sources": [
