@@ -10,16 +10,35 @@
     <div class="shell">
     <div class="mode-bar">
       <div class="modes" role="group" aria-label="Mode">
-        <button type="button" data-mode="novice"><span>Novice</span><small>Life</small></button>
-        <button type="button" data-mode="beginner"><span>Beginner</span><small>Life$pan</small></button>
-        <button type="button" data-mode="advanced"><span>Advanced</span><small>Stage 2</small></button>
+        <button type="button" data-mode="life"><span>Life</span></button>
+        <button type="button" data-mode="lifespan"><span>Life$pan</span></button>
+        <button type="button" data-mode="entirety"><span>Entirety</span></button>
       </div>
       <p id="mode-note"></p>
+    </div>
+    <div class="brand">
+      <p class="eyebrow">v0.7.0</p>
+      <h1 id="title">Life</h1>
+      <p class="dek" id="dek">Pick Life, Life$pan, or Entirety.</p>
+      <p id="retirement" class="retirement" hidden>Retirement is not built yet.</p>
+      <div class="open-name">
+        <label for="game-name">Game name</label>
+        <input id="game-name" autocomplete="off" />
+      </div>
+      <div class="switches" role="group" aria-label="Play switches">
+        <label class="switch"><input id="anim" type="checkbox" checked /> Animation</label>
+        <label class="switch"><input id="speed" type="checkbox" /> Speed run</label>
+      </div>
     </div>
     <div class="dash">
       <aside class="leaderboard" aria-label="Leaderboard">
         <p class="eyebrow">Leaderboard</p>
-        <p class="player" id="player-name">One player</p>
+        <div class="lb-cycle">
+          <button type="button" id="player-prev" aria-label="Previous player">Prev</button>
+          <p class="player" id="player-name">One player</p>
+          <button type="button" id="player-next" aria-label="Next player">Next</button>
+        </div>
+        <p class="lb-count" id="player-count">1 of 1</p>
         <div class="lb-body">
           <svg id="figure" viewBox="0 0 160 130" aria-hidden="true"></svg>
           <dl class="stats">
@@ -61,17 +80,6 @@
         </div>
       </aside>
 
-      <div class="brand">
-        <p class="eyebrow">v0.6.0</p>
-        <h1 id="title">Life</h1>
-        <p class="dek" id="dek">Pick Novice, Beginner, or Advanced.</p>
-        <p id="retirement" class="retirement" hidden>Retirement. Not built yet.</p>
-        <div class="switches" role="group" aria-label="Play switches">
-          <label class="switch"><input id="anim" type="checkbox" checked /> Animation</label>
-          <label class="switch"><input id="speed" type="checkbox" /> Speed run</label>
-        </div>
-      </div>
-
       <aside class="minimap-wrap" aria-label="Minimap">
         <p class="eyebrow">Minimap</p>
         <div id="minimap"></div>
@@ -83,8 +91,6 @@
         <p class="setup-lead" id="setup-lead">Pick a mode. It locks when Study or Work begins.</p>
         <p id="share-sum"></p>
         <div class="name-row">
-          <label for="game-name">Game name</label>
-          <input id="game-name" autocomplete="off" />
           <button id="save" type="button">Save</button>
           <button id="resume" type="button">Resume</button>
           <button id="new-game" type="button">New game</button>
@@ -99,18 +105,17 @@
         <figcaption id="flavor-caption"></figcaption>
       </figure>
       <div id="choices"></div>
+      <details class="log-wrap">
+        <summary>Decision log</summary>
+        <ol id="log"></ol>
+      </details>
+      <p class="fine" id="fine"></p>
     </section>
 
     <div class="scroll">
     <div class="board-scroll">
       <div id="board"></div>
     </div>
-
-    <details class="log-wrap" open>
-      <summary>Decision log</summary>
-      <ol id="log"></ol>
-    </details>
-    <p class="fine" id="fine"></p>
     </div>
 
     <div class="dock">
