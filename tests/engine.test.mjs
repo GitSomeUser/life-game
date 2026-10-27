@@ -10,7 +10,7 @@ import {
   createGame,
   currentSpace,
   deathProbability,
-  isAdvanced,
+  isEntirety,
   lifeExpectancy,
   monthlyExpenses,
   outcomeFromUnit,
@@ -345,25 +345,26 @@ test("the center and the three corners match the triangle", () => {
   assert.deepEqual(once.log, twice.log);
 });
 
-test("novice and beginner ignore the triangle and the wedge", () => {
+test("life and lifespan ignore the triangle and the wedge", () => {
   const point = { h: 0, w: 1, f: 0 };
-  const novice = choosePath(spec, createGame(spec, 7, point, "novice"), "study");
-  assert.equal(novice.mode, "novice");
-  assert.equal(isAdvanced(novice), false);
-  assert.equal(novice.cash, spec.meta.startingCash - 124000);
-  const placed = applyRoll(spec, novice, 10);
+  const life = choosePath(spec, createGame(spec, 7, point, "life"), "study");
+  assert.equal(life.mode, "life");
+  assert.equal(isEntirety(life), false);
+  assert.equal(life.cash, spec.meta.startingCash - 124000);
+  const placed = applyRoll(spec, life, 10);
   assert.equal(placed.salary, spec.meta.studySalary);
   assert.equal(placed.death, null);
 
-  const beginner = choosePath(spec, createGame(spec, 7, point, "beginner"), "study");
-  assert.equal(beginner.cash, novice.cash);
-  assert.equal(beginner.salary, novice.salary);
+  const lifespan = choosePath(spec, createGame(spec, 7, point, "lifespan"), "study");
+  assert.equal(lifespan.cash, life.cash);
+  assert.equal(lifespan.salary, life.salary);
 
-  const advanced = choosePath(spec, createGame(spec, 7, point, "advanced"), "study");
-  assert.notEqual(advanced.cash, novice.cash);
-  assert.equal(advanced.cash, novice.cash - Math.round(-novice.cash * spec.meta.triangle.borrowingRate));
+  const entirety = choosePath(spec, createGame(spec, 7, point, "entirety"), "study");
+  assert.equal(isEntirety(entirety), true);
+  assert.notEqual(entirety.cash, life.cash);
+  assert.equal(entirety.cash, life.cash - Math.round(-life.cash * spec.meta.triangle.borrowingRate));
 
-  const hired = choosePath(spec, createGame(spec, 3, point, "novice"), "work");
+  const hired = choosePath(spec, createGame(spec, 3, point, "life"), "work");
   assert.equal(hired.salary, spec.meta.workSalary);
   assert.equal(hired.cash, spec.meta.startingCash);
 
@@ -377,11 +378,11 @@ test("novice and beginner ignore the triangle and the wedge", () => {
   };
   let died = null;
   for (let seed = 1; seed < 4000 && !died; seed += 1) {
-    if (play("advanced", seed).death) died = seed;
+    if (play("entirety", seed).death) died = seed;
   }
-  assert.ok(died, "an advanced life should be able to hit the wedge");
-  const plain = play("novice", died);
-  const same = play("beginner", died);
+  assert.ok(died, "an entirety life should be able to hit the wedge");
+  const plain = play("life", died);
+  const same = play("lifespan", died);
   assert.equal(plain.death, null);
   assert.equal(same.death, null);
   assert.equal(currentSpace(spec, plain).age, 68);
