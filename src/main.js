@@ -593,7 +593,8 @@ function renderStats() {
     return;
   }
   const portrait = portraitStats(spec, state);
-  savingsEl.textContent = money(state.cash);
+  const interestNote = portrait.interest > 0 ? `<span class="borrow-note">earns 4% a year</span>` : "";
+  savingsEl.innerHTML = `${money(state.cash)}${interestNote}`;
   savingsEl.className = state.cash < 0 ? "bad" : "good";
   payEl.className = portrait.income < 0 ? "bad" : "good";
   payEl.innerHTML = `${money(portrait.income)}${deltaMark("income", portrait.incomeDelta)}`;
