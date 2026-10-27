@@ -16,6 +16,7 @@ import {
   outcomeFromUnit,
   portraitStats,
   resolveChoice,
+  savingsInterest,
   spin,
   toneCounts,
   track,
@@ -57,7 +58,9 @@ test("work collects the early payday when passing it, then can raise only on a l
   assert.equal(state.salary, pay);
   state = applyRoll(spec, state, 1);
   assert.equal(currentSpace(spec, state).age, 19);
-  assert.equal(state.cash, spec.meta.startingCash + pay);
+  const opened = spec.meta.startingCash + Math.round(spec.meta.startingCash * spec.meta.triangle.interestRate);
+  const afterPay = opened + pay;
+  assert.equal(state.cash, afterPay + Math.round(afterPay * spec.meta.triangle.interestRate));
   state = applyRoll(spec, state, 2);
   assert.equal(currentSpace(spec, state).id, "work-raise");
   assert.equal(state.salary, pay + raise);
@@ -69,7 +72,12 @@ test("a stop cuts the move and still pays salaries passed on the way", () => {
   let state = choosePath(spec, createGame(spec, 1), "work");
   state = applyRoll(spec, state, 10);
   assert.equal(currentSpace(spec, state).id, "partnership");
-  assert.equal(state.cash, spec.meta.startingCash + pay + pay + party);
+  const rate = spec.meta.triangle.interestRate;
+  let expected = spec.meta.startingCash + Math.round(spec.meta.startingCash * rate) + pay + pay;
+  for (let n = 0; n < 7; n += 1) expected += Math.round(expected * rate);
+  expected += party;
+  expected += Math.round(expected * rate);
+  assert.equal(state.cash, expected);
   const spinEntry = state.log.find((e) => e.t === "spin");
   assert.deepEqual(spinEntry.paydayAges, [19, 23]);
   assert.equal(spinEntry.toAge, 26);
@@ -115,7 +123,16 @@ test("passing a payday then landing on a cost pays salary once and the cost once
   const lastSpin = [...state.log].reverse().find((e) => e.t === "spin");
   assert.deepEqual(lastSpin.paydayAges, [28]);
   assert.equal(lastSpin.paydayCash, pay);
-  assert.equal(state.cash, spec.meta.startingCash + pay + pay + party + pay + child);
+  const rate = spec.meta.triangle.interestRate;
+  let expected = spec.meta.startingCash + Math.round(spec.meta.startingCash * rate) + pay + pay;
+  for (let n = 0; n < 7; n += 1) expected += Math.round(expected * rate);
+  expected += party;
+  expected += Math.round(expected * rate);
+  expected += pay;
+  for (let n = 0; n < 2; n += 1) expected += Math.round(expected * rate);
+  expected += child;
+  expected += Math.round(expected * rate);
+  assert.equal(state.cash, expected);
 });
 
 test("risky yes outcomes stay on the fate stream", () => {
@@ -259,7 +276,7 @@ test("the center and the three corners match the triangle", () => {
   assert.equal(hired.salary, workIncome);
   const centerHire = choosePath(spec, createGame(spec, 3), "work");
   assert.equal(centerHire.salary, 48000);
-  assert.equal(centerHire.cash, spec.meta.startingCash);
+  assert.equal(centerHire.cash, spec.meta.startingCash + Math.round(spec.meta.startingCash * spec.meta.triangle.interestRate));
   hired = applyRoll(spec, hired, 1);
   assert.equal(hired.salary, workIncome);
 
@@ -395,6 +412,28 @@ test("life and lifespan ignore the triangle and the wedge", () => {
   assert.equal(spec.paths.retirement, undefined);
   assert.equal(spec.meta.ageEnd, 68);
   assert.throws(() => choosePath(spec, createGame(spec, 1, point, null), "work"), /mode/);
+});
+
+test("entirety pays 4 percent on positive savings and still borrows when negative", () => {
+  const rate = spec.meta.triangle.interestRate;
+  assert.equal(rate, 0.04);
+  assert.equal(spec.meta.triangle.borrowingRate, 0.04);
+  assert.equal(savingsInterest(10000, spec), 400);
+  assert.equal(savingsInterest(0, spec), 0);
+  assert.equal(savingsInterest(-2500, spec), 0);
+  const hired = choosePath(spec, createGame(spec, 3), "work");
+  assert.equal(hired.mode, "entirety");
+  assert.equal(hired.cash, spec.meta.startingCash + Math.round(spec.meta.startingCash * rate));
+  const life = choosePath(spec, createGame(spec, 3, { h: 1 / 3, w: 1 / 3, f: 1 / 3 }, "life"), "work");
+  assert.equal(life.cash, spec.meta.startingCash);
+  const span = choosePath(spec, createGame(spec, 3, { h: 1 / 3, w: 1 / 3, f: 1 / 3 }, "lifespan"), "work");
+  assert.equal(span.cash, life.cash);
+  const owed = spec.meta.startingCash - 124000;
+  const studied = choosePath(spec, createGame(spec, 7), "study");
+  assert.ok(owed < 0);
+  assert.equal(studied.cash, owed - Math.round(-owed * spec.meta.triangle.borrowingRate));
+  assert.equal(spec.paths.retirement, undefined);
+  assert.equal(spec.meta.ageEnd, 68);
 });
 
 test("tone mix is recorded for a later matching phase", () => {
