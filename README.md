@@ -1,8 +1,8 @@
-# Life - v0.10.0
+# Life - v0.10.1
 
 Stage 2 of an online board: the working-life climb, ages 18-68. One player. The first screen is three words, the game name, and the animation and speed-run toggles. The choice locks when Study or Work begins, and the save stores it.
 
-**Life** is the traditional Game of Life. Squares are events, not years. Paydays stay paydays. A move does not pay salary or charge expenses on every space. No triangle. Choices, including Study and Work, flash dark and white until one is picked. White is the one selected. The others stay dark. A new game takes a new seed from the start time unless you typed one, and the seed stays on screen. The board is the classic climb again: a car, a wedding, a baby, a huge house down payment, credit cards that stack until they come due, medical decisions, and other costs and windfalls. A straight play can finish broke.
+**Life** is the traditional Game of Life. Squares are events, not years. Paydays stay paydays. A move does not pay salary or charge expenses on every space. No triangle. A click on Life, Life$pan, or Life$pan+ starts a new game. The player does not type a seed, and the seed is not on the screen. Choices that are waiting, including those three modes and Study or Work, vibrate: the type cycles between bold and dim, and through a few fonts. Selected stays steady and bold. Unselected stays dim. The board is the classic climb again: a car, a wedding, a baby, a huge house down payment, credit cards that stack until they come due, medical decisions, and other costs and windfalls. A straight play can finish broke.
 
 **Life$pan** - the S is a dollar sign. Each square is one year. Moving one space pays that year's salary and charges that year's expenses. Former paydays are named Promo?. No triangle. Retirement is not built yet.
 
@@ -28,15 +28,15 @@ Open [http://127.0.0.1:5173](http://127.0.0.1:5173). Use a local server. Opening
 
 ## Play
 
-1. Pick **Life**, **Life$pan**, or **Life$pan+**. You can flip it until the path starts.
-2. Name the game. A save is that name, a hyphen, and the seed, and it stores the mode. Resume loads the full name, such as Life$pan-482913.
+1. Click **Life**, **Life$pan**, or **Life$pan+**. That starts a new game. You can flip it until the path starts. While they are waiting, the three words vibrate.
+2. Name the game if you want a save. Save stores that name and the mode. Resume loads the name you typed. If the name box is empty, Resume does nothing.
 3. On Life$pan+, drag the point inside the triangle before the path starts, or snap it to Health, Work, Frugality, or the center. The triangle hides once Study or Work begins.
-4. A new game mints a seed from the start time and returns to the opening choice.
-5. At the start, choose **Study** or **Work**. Both flash dark and white until one is picked. White means selected. The other stays dark. Both paths are 51 spaces and meet on the fifth square. On Life$pan and Life$pan+ each square is one year, ages 18-68, and moving one space pays that year's salary and charges that year's expenses. On Life the squares are events, not years, and only paydays pay.
-6. Press **Spin**. Life and Life$pan roll 1 through 10. Life$pan+ adds a death wedge for this age. **Speed run** keeps spinning until a choice, a death, or age 68. **Animation** off snaps the wheel and skips the beat. A yes or no also flashes until it is picked.
+4. New game returns to the opening choice. The next click on a mode starts another game.
+5. At the start, choose **Study** or **Work**. Both vibrate until one is picked. Selected stays steady and bold. The other stays dim. Both paths are 51 spaces and meet on the fifth square. On Life$pan and Life$pan+ each square is one year, ages 18-68, and moving one space pays that year's salary and charges that year's expenses. On Life the squares are events, not years, and only paydays pay.
+6. Press **Spin**. Life and Life$pan roll 1 through 10. Life$pan+ adds a death wedge for this age. **Speed run** keeps spinning until a choice, a death, or age 68. **Animation** off snaps the wheel and skips the beat. A yes or no also vibrates until it is picked.
 7. On Life$pan+, landing in the wedge ends the life on the current square. There is no numbered move.
 8. You resolve the space you land on. On Life, **Payday** also pays when you pass it. On Life$pan and Life$pan+, that tile is **Promo?** instead. A **stop** ends the move early; spin again. A landing plays a short original beat.
-9. Some years ask a yes or no. The answer is written into the decision log. Risky answers use the seed.
+9. Some years ask a yes or no. The answer is written into the decision log. Risky answers are already fixed for that game.
 10. At 68 the working track stops. On Life$pan+, the wedge can end it sooner. Retirement spaces are not on the board.
 
 Promo?, on Life$pan and Life$pan+ only, runs when you land on or pass a former payday. The card states the odds for the mode you are in. Both modes share 2 in 10 temporary pay bonus, 2 in 10 temporary pay cut, 2 in 10 permanent pay promotion, 2 in 100 expenses increase, and the rest stay the same. On Life$pan the two 1-in-10 spins are a temporary bonus with a permanent pay increase, and a temporary expense increase with a permanent pay decrease. On Life$pan+ those two spins move the triangle slightly closer or slightly away, and they do not change pay. A later demotion cannot drop pay below 80% of starting pay. Temporary means this year only.
