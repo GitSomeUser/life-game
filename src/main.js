@@ -60,8 +60,8 @@ const speedEl = document.querySelector("#speed");
 const logEl = document.querySelector("#log");
 const fineEl = document.querySelector("#fine");
 const actBtn = document.querySelector("#act");
-const seedInput = document.querySelector("#seed");
 const copyBtn = document.querySelector("#copy");
+const resumeOpenBtn = document.querySelector("#resume-open");
 const readout = document.querySelector("#roll-readout");
 const wheel = document.querySelector("#wheel");
 
@@ -89,26 +89,25 @@ const CORNERS = {
 };
 
 const params = new URLSearchParams(location.search);
-const seedLiveEl = document.querySelector("#seed-live");
-let seedEdited = false;
 let seedNonce = 1;
+let heldSeed = 0;
 
 function mintSeed() {
-  const next = freshSeed(Date.now(), seedNonce, state?.seed || 0);
+  const next = freshSeed(Date.now(), seedNonce, state?.seed || heldSeed || 0);
   seedNonce = (seedNonce + 1) >>> 0;
+  heldSeed = next;
   return next;
 }
 
-function showSeed(value = seedInput.value) {
-  if (seedLiveEl) seedLiveEl.textContent = value ? `Seed ${value}` : "";
+function openingSeed() {
+  const raw = params.get("seed");
+  if (raw != null && raw !== "") {
+    const n = Number(raw);
+    if (Number.isInteger(n) && n >= 0) return n >>> 0;
+  }
+  return mintSeed();
 }
 
-seedInput.value = params.get("seed") ?? String(mintSeed());
-showSeed();
-seedInput.addEventListener("input", () => {
-  seedEdited = seedInput.value.trim() !== "";
-  showSeed();
-});
 if (params.get("name")) gameNameInput.value = params.get("name");
 if (params.get("anim") === "0") animEl.checked = false;
 if (params.get("speed") === "1") speedEl.checked = true;
@@ -221,35 +220,13 @@ function resetNeedle() {
   if (needle) needle.style.transform = "rotate(0deg)";
 }
 
-function takeFreshSeed() {
-  if (seedEdited && seedInput.value.trim() !== "") return seedNumber();
-  const next = mintSeed();
-  seedInput.value = String(next);
-  showSeed();
-  return next;
-}
-
-function seedNumber() {
-  const n = Number(seedInput.value);
-  if (!Number.isInteger(n) || n < 0) return 1;
-  return n >>> 0;
-}
-
 function gameName() {
   return gameNameInput.value.trim();
 }
 
-function savedName() {
-  const typed = gameName();
-  const seed = String(state?.seed ?? seedNumber());
-  if (!typed) return "";
-  return typed.endsWith(`-${seed}`) ? typed : `${typed}-${seed}`;
-}
-
 function startPath(pathName) {
   if (!gameName() || !state?.mode) return;
-  const seed = seedNumber();
-  state = choosePath(spec, createGame(spec, seed, state.point, state.mode), pathName);
+  state = choosePath(spec, createGame(spec, state.seed, state.point, state.mode), pathName);
   pointLocked = true;
   inspect = null;
   playBeat("land");
@@ -810,7 +787,7 @@ function drawTriangle() {
 
 function setPoint(point) {
   if (pointLocked || state?.path || !isEntirety(state)) return;
-  state = createGame(spec, seedNumber(), point, state.mode);
+  state = createGame(spec, state.seed, point, state.mode);
   render();
 }
 
@@ -879,41 +856,26 @@ function note(text) {
 }
 
 function saveGame() {
-  const typed = gameName();
-  if (!typed) {
+  const name = gameName();
+  if (!name) {
     note("Name the game first.");
     return;
   }
-  const name = savedName();
   localStorage.setItem(`life-game:${name}`, JSON.stringify({
     name,
-    player: typed,
+    player: name,
     version: spec.meta.version,
     state,
     animation: animEl.checked,
     speedRun: speedEl.checked,
   }));
-  note(`Saved ${name}. Resume that full name.`);
+  note(`Saved ${name}.`);
 }
 
 function resumeGame() {
-  const typed = gameName();
-  if (!typed) {
-    note("Name the game first.");
-    return;
-  }
-  const names = [typed];
-  const full = savedName();
-  if (full && full !== typed) names.push(full);
-  let raw = null;
-  let name = typed;
-  for (const candidate of names) {
-    raw = localStorage.getItem(`life-game:${candidate}`);
-    if (raw) {
-      name = candidate;
-      break;
-    }
-  }
+  const name = gameName();
+  if (!name) return;
+  const raw = localStorage.getItem(`life-game:${name}`);
   if (!raw) {
     note("No save under that name.");
     return;
@@ -934,7 +896,6 @@ function resumeGame() {
   speedEl.checked = Boolean(data.speedRun);
   pointLocked = Boolean(state.path);
   gameNameInput.value = name;
-  seedInput.value = String(state.seed);
   inspect = null;
   resetNeedle();
   note(`Resumed ${name}.`);
@@ -946,8 +907,8 @@ function newGame() {
   pointLocked = false;
   inspect = null;
   resetNeedle();
-  state = createGame(spec, takeFreshSeed(), { ...CORNERS.center }, null);
-  note("Pick a mode.");
+  state = createGame(spec, mintSeed(), { ...CORNERS.center }, null);
+  note("");
   render();
 }
 
@@ -955,7 +916,7 @@ function renderLog() {
   logEl.replaceChildren();
   if (!state.log.length) {
     const li = document.createElement("li");
-    li.textContent = "No decisions yet. The seed is fixed once you begin.";
+    li.textContent = "No decisions yet.";
     logEl.append(li);
     return;
   }
@@ -968,8 +929,6 @@ function renderLog() {
 }
 
 function renderControls() {
-  showSeed(state?.path ? String(state.seed) : seedInput.value);
-  seedInput.readOnly = state.phase !== "choose";
   const spun = lastSpin();
   if (state.phase === "choose") {
     actBtn.textContent = "Spin";
@@ -1021,7 +980,7 @@ function render() {
 function takeTurn() {
   if (locked) return;
   if (state.phase === "ended") {
-    state = createGame(spec, takeFreshSeed(), { ...CORNORS.center }, null);
+    state = createGame(spec, mintSeed(), { ...CORNERS.center }, null);
     pointLocked = false;
     inspect = null;
     resetNeedle();
@@ -1049,7 +1008,7 @@ function takeTurn() {
 actBtn.addEventListener("click", takeTurn);
 
 copyBtn.addEventListener("click", async () => {
-  const text = [`game ${gameName() || "unnamed"}`, leverReadout.textContent, `seed ${state.seed}`, ...state.log.map(logLine)].join("\n");
+  const text = [`game ${gameName() || "unnamed"}`, leverReadout.textContent, ...state.log.map(logLine)].join("\n");
   try {
     await navigator.clipboard.writeText(text);
     copyBtn.textContent = "Copied";
@@ -1079,7 +1038,9 @@ document.querySelectorAll("[data-corner]").forEach((btn) => {
 document.querySelectorAll("[data-mode]").forEach((btn) => {
   btn.addEventListener("click", () => {
     if (!spec || state?.path) return;
-    state = createGame(spec, seedNumber(), isEntirety({ mode: btn.dataset.mode }) ? state.point : { ...CORNERS.center }, btn.dataset.mode);
+    const mode = btn.dataset.mode;
+    const point = isEntirety({ mode }) && state?.point ? state.point : { ...CORNERS.center };
+    state = createGame(spec, mintSeed(), point, mode);
     note("");
     render();
   });
@@ -1116,6 +1077,7 @@ document.querySelector("#player-prev").addEventListener("click", () => cyclePlay
 document.querySelector("#player-next").addEventListener("click", () => cyclePlayer(1));
 saveBtn.addEventListener("click", saveGame);
 resumeBtn.addEventListener("click", resumeGame);
+resumeOpenBtn.addEventListener("click", resumeGame);
 newGameBtn.addEventListener("click", newGame);
 animEl.addEventListener("change", () => renderControls());
 speedEl.addEventListener("change", () => renderControls());
@@ -1144,7 +1106,7 @@ if (!specRes.ok) {
 } else {
   spec = await specRes.json();
   fineEl.textContent = `${spec.meta.rules.join(" ")} Amounts, the triangle, and both mortality series live in the board spec. One player. Stats are public.`;
-  state = createGame(spec, seedNumber(), pointFromQuery(), modeFromQuery());
+  state = createGame(spec, openingSeed(), pointFromQuery(), modeFromQuery());
   const preset = params.get("path");
   if ((preset === "study" || preset === "work") && gameName() && state.mode) startPath(preset);
   render();
