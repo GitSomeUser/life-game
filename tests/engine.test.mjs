@@ -3,6 +3,7 @@ import test from "node:test";
 import spec from "../spec/accumulation.json" with { type: "json" };
 import {
   annualExpenses,
+  applyReview,
   applyRoll,
   attributeWeights,
   axis,
@@ -16,6 +17,7 @@ import {
   outcomeFromUnit,
   portraitStats,
   resolveChoice,
+  reviewFromUnit,
   savingsInterest,
   spin,
   toneCounts,
@@ -54,13 +56,14 @@ test("study pays tuition immediately and sets salary only at the job stop", () =
 test("work collects the early payday when passing it, then can raise only on a landing", () => {
   const pay = spec.meta.workSalary;
   const raise = spec.paths.work.spaces[3].salaryDelta;
-  let state = choosePath(spec, createGame(spec, 3), "work");
+  let state = choosePath(spec, createGame(spec, 3, undefined, "life"), "work");
   assert.equal(state.salary, pay);
   state = applyRoll(spec, state, 1);
   assert.equal(currentSpace(spec, state).age, 19);
-  const opened = spec.meta.startingCash + Math.round(spec.meta.startingCash * spec.meta.triangle.interestRate);
-  const afterPay = opened + pay;
-  assert.equal(state.cash, afterPay + Math.round(afterPay * spec.meta.triangle.interestRate));
+  assert.equal(state.cash, spec.meta.startingCash + pay);
+  const spun = state.log.find((e) => e.t === "spin");
+  assert.equal(spun.paydayCash, pay);
+  assert.equal(spun.reviews.length, 0);
   state = applyRoll(spec, state, 2);
   assert.equal(currentSpace(spec, state).id, "work-raise");
   assert.equal(state.salary, pay + raise);
@@ -69,17 +72,13 @@ test("work collects the early payday when passing it, then can raise only on a l
 test("a stop cuts the move and still pays salaries passed on the way", () => {
   const pay = spec.meta.workSalary;
   const party = spec.paths.shared.spaces.find((s) => s.id === "partnership").cash;
-  let state = choosePath(spec, createGame(spec, 1), "work");
+  let state = choosePath(spec, createGame(spec, 1, undefined, "life"), "work");
   state = applyRoll(spec, state, 10);
   assert.equal(currentSpace(spec, state).id, "partnership");
-  const rate = spec.meta.triangle.interestRate;
-  let expected = spec.meta.startingCash + Math.round(spec.meta.startingCash * rate) + pay + pay;
-  for (let n = 0; n < 7; n += 1) expected += Math.round(expected * rate);
-  expected += party;
-  expected += Math.round(expected * rate);
-  assert.equal(state.cash, expected);
+  assert.equal(state.cash, spec.meta.startingCash + pay + pay + party);
   const spinEntry = state.log.find((e) => e.t === "spin");
   assert.deepEqual(spinEntry.paydayAges, [19, 23]);
+  assert.equal(spinEntry.paydayCash, pay + pay);
   assert.equal(spinEntry.toAge, 26);
   assert.equal(state.phase, "play");
 });
@@ -112,7 +111,7 @@ test("landing on a choice waits, and the same seed replays spins and fate", () =
 });
 
 test("passing a payday then landing on a cost pays salary once and the cost once", () => {
-  let state = choosePath(spec, createGame(spec, 9), "work");
+  let state = choosePath(spec, createGame(spec, 9, undefined, "life"), "work");
   state = applyRoll(spec, state, 10);
   assert.equal(currentSpace(spec, state).id, "partnership");
   state = applyRoll(spec, state, 3);
@@ -123,16 +122,7 @@ test("passing a payday then landing on a cost pays salary once and the cost once
   const lastSpin = [...state.log].reverse().find((e) => e.t === "spin");
   assert.deepEqual(lastSpin.paydayAges, [28]);
   assert.equal(lastSpin.paydayCash, pay);
-  const rate = spec.meta.triangle.interestRate;
-  let expected = spec.meta.startingCash + Math.round(spec.meta.startingCash * rate) + pay + pay;
-  for (let n = 0; n < 7; n += 1) expected += Math.round(expected * rate);
-  expected += party;
-  expected += Math.round(expected * rate);
-  expected += pay;
-  for (let n = 0; n < 2; n += 1) expected += Math.round(expected * rate);
-  expected += child;
-  expected += Math.round(expected * rate);
-  assert.equal(state.cash, expected);
+  assert.equal(state.cash, spec.meta.startingCash + pay + pay + party + pay + child);
 });
 
 test("risky yes outcomes stay on the fate stream", () => {
@@ -278,13 +268,15 @@ test("the center and the three corners match the triangle", () => {
   assert.equal(centerHire.salary, 48000);
   assert.equal(centerHire.cash, spec.meta.startingCash + Math.round(spec.meta.startingCash * spec.meta.triangle.interestRate));
   hired = applyRoll(spec, hired, 1);
-  assert.equal(hired.salary, workIncome);
+  assert.equal(currentSpace(spec, hired).kind, "payday");
+  assert.equal(hired.log.find((entry) => entry.t === "spin").reviews[0].id, "promo");
+  assert.equal(hired.salary, Math.round(workIncome * (1 + spec.meta.review.permanentPromo)));
 
   let plain = choosePath(spec, createGame(spec, 1, { h: 0, w: 0, f: 1 }), "work");
   assert.equal(plain.salary, frugalIncome);
   plain = applyRoll(spec, plain, 10);
   assert.equal(currentSpace(spec, plain).id, "partnership");
-  assert.equal(plain.salary, frugalIncome);
+  assert.ok(plain.log.find((entry) => entry.t === "spin").reviews.length >= 1);
   const party = spec.paths.shared.spaces.find((s) => s.id === "partnership").cash;
   assert.equal(party, -8000);
 
@@ -314,7 +306,7 @@ test("the center and the three corners match the triangle", () => {
   assert.ok(deathProbability(spec, age, edgeRates.axis.h) > deathProbability(spec, age, 0));
 
   const stats = portraitStats(spec, hired);
-  assert.equal(stats.income, workIncome);
+  assert.equal(stats.income, hired.salary);
   assert.ok(stats.incomeDelta > 0);
   assert.ok(stats.expenseDelta > 0);
   assert.ok(stats.deathDelta > 0);
@@ -376,8 +368,9 @@ test("life and lifespan ignore the triangle and the wedge", () => {
   assert.equal(lifespan.cash, life.cash);
   assert.equal(lifespan.salary, life.salary);
 
-  const entirety = choosePath(spec, createGame(spec, 7, point, "entirety"), "study");
+  const entirety = choosePath(spec, createGame(spec, 7, point, "lifespan-plus"), "study");
   assert.equal(isEntirety(entirety), true);
+  assert.equal(entirety.mode, "lifespan-plus");
   assert.notEqual(entirety.cash, life.cash);
   assert.equal(entirety.cash, life.cash - Math.round(-life.cash * spec.meta.triangle.borrowingRate));
 
@@ -395,7 +388,7 @@ test("life and lifespan ignore the triangle and the wedge", () => {
   };
   let died = null;
   for (let seed = 1; seed < 4000 && !died; seed += 1) {
-    if (play("entirety", seed).death) died = seed;
+    if (play("lifespan-plus", seed).death) died = seed;
   }
   assert.ok(died, "an entirety life should be able to hit the wedge");
   const plain = play("life", died);
@@ -404,8 +397,9 @@ test("life and lifespan ignore the triangle and the wedge", () => {
   assert.equal(same.death, null);
   assert.equal(currentSpace(spec, plain).age, 68);
   assert.equal(currentSpace(spec, same).age, 68);
-  assert.equal(plain.cash, same.cash);
-  assert.equal(plain.salary, same.salary);
+  assert.ok(plain.log.some((entry) => entry.paydayCash > 0));
+  assert.ok(same.log.some((entry) => entry.reviews?.length));
+  assert.equal(same.log.some((entry) => entry.paydayCash > 0), false);
   const spun = plain.log.find((entry) => entry.t === "spin");
   assert.ok(spun.roll >= 1 && spun.roll <= 10);
   assert.equal(plain.log.some((entry) => entry.t === "death"), false);
@@ -422,7 +416,7 @@ test("entirety pays 4 percent on positive savings and still borrows when negativ
   assert.equal(savingsInterest(0, spec), 0);
   assert.equal(savingsInterest(-2500, spec), 0);
   const hired = choosePath(spec, createGame(spec, 3), "work");
-  assert.equal(hired.mode, "entirety");
+  assert.equal(hired.mode, "lifespan-plus");
   assert.equal(hired.cash, spec.meta.startingCash + Math.round(spec.meta.startingCash * rate));
   const life = choosePath(spec, createGame(spec, 3, { h: 1 / 3, w: 1 / 3, f: 1 / 3 }, "life"), "work");
   assert.equal(life.cash, spec.meta.startingCash);
@@ -434,6 +428,72 @@ test("entirety pays 4 percent on positive savings and still borrows when negativ
   assert.equal(studied.cash, owed - Math.round(-owed * spec.meta.triangle.borrowingRate));
   assert.equal(spec.paths.retirement, undefined);
   assert.equal(spec.meta.ageEnd, 68);
+});
+
+test("review odds are the seven stated bands", () => {
+  const bands = spec.meta.review.bands;
+  assert.equal(bands.reduce((sum, band) => sum + band.count, 0), 100);
+  assert.equal(reviewFromUnit(spec, 0).id, "closer");
+  assert.equal(reviewFromUnit(spec, 0.099).id, "closer");
+  assert.equal(reviewFromUnit(spec, 0.1).id, "away");
+  assert.equal(reviewFromUnit(spec, 0.2).id, "temp-bonus");
+  assert.equal(reviewFromUnit(spec, 0.4).id, "temp-cut");
+  assert.equal(reviewFromUnit(spec, 0.6).id, "promo");
+  assert.equal(reviewFromUnit(spec, 0.8).id, "expenses");
+  assert.equal(reviewFromUnit(spec, 0.82).id, "stay");
+  assert.equal(reviewFromUnit(spec, 0.999).id, "stay");
+  assert.match(bands.map((band) => band.label).join(" "), /1 in 10/);
+  assert.match(spec.meta.modes.life, /Squares are not years/);
+  assert.match(spec.meta.modes.lifespan, /review/);
+  assert.match(spec.meta.modes["lifespan-plus"], /triangle/);
+  assert.equal(spec.meta.modes.entirety, undefined);
+});
+
+test("a former payday is a review on Life$pan and a payday on Life", () => {
+  const life = applyRoll(spec, choosePath(spec, createGame(spec, 4, undefined, "life"), "work"), 1);
+  assert.equal(currentSpace(spec, life).kind, "payday");
+  assert.equal(life.log.find((entry) => entry.t === "spin").paydayCash, spec.meta.workSalary);
+  const span = applyRoll(spec, choosePath(spec, createGame(spec, 4, undefined, "lifespan"), "work"), 1);
+  const review = span.log.find((entry) => entry.t === "spin").reviews[0];
+  assert.equal(review.age, 19);
+  assert.equal(span.log.find((entry) => entry.t === "spin").paydayCash, 0);
+  const plus = applyRoll(spec, choosePath(spec, createGame(spec, 4, undefined, "entirety"), "work"), 1);
+  assert.equal(plus.mode, "lifespan-plus");
+  assert.equal(plus.log.find((entry) => entry.t === "spin").reviews.length, 1);
+});
+
+test("review results change pay, cash, or expenses, and a demo stops at 80 percent", () => {
+  const hired = choosePath(spec, createGame(spec, 4, undefined, "lifespan"), "work");
+  const start = spec.meta.workSalary;
+  const closer = applyReview(spec, hired, 0.05);
+  assert.equal(closer.salary, Math.round(start * (1 + spec.meta.review.shift)));
+  assert.equal(closer.point.w, hired.point.w);
+  const away = applyReview(spec, hired, 0.15);
+  assert.equal(away.salary, Math.round(start * (1 - spec.meta.review.shift)));
+  const bonus = applyReview(spec, hired, 0.25);
+  assert.equal(bonus.salary, start);
+  assert.equal(bonus.cashDelta, Math.round(start * spec.meta.review.tempPay));
+  const cut = applyReview(spec, hired, 0.45);
+  assert.equal(cut.salary, start);
+  assert.equal(cut.cashDelta, -Math.round(start * spec.meta.review.tempPay));
+  const promo = applyReview(spec, hired, 0.65);
+  assert.equal(promo.promoted, true);
+  assert.equal(promo.salary, Math.round(start * (1 + spec.meta.review.permanentPromo)));
+  const bill = applyReview(spec, hired, 0.805);
+  assert.equal(bill.salary, start);
+  assert.equal(bill.expenseLoad, spec.meta.review.expenseBump);
+  const stay = applyReview(spec, hired, 0.9);
+  assert.equal(stay.salary, start);
+  assert.equal(stay.cashDelta, 0);
+  let worn = { ...hired, ...promo };
+  for (let n = 0; n < 40; n += 1) worn = { ...worn, ...applyReview(spec, worn, 0.15) };
+  assert.ok(worn.salary >= Math.round(start * spec.meta.review.promoFloor));
+  assert.equal(worn.held, true);
+  const plus = choosePath(spec, createGame(spec, 4, { h: 1 / 3, w: 1 / 3, f: 1 / 3 }, "lifespan-plus"), "work");
+  const nudged = applyReview(spec, plus, 0.05);
+  assert.ok(nudged.point.w > plus.point.w);
+  assert.ok(nudged.salary >= plus.salary);
+  assert.equal(nudged.payMod, 1);
 });
 
 test("tone mix is recorded for a later matching phase", () => {
