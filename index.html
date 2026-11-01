@@ -12,14 +12,14 @@
       <div class="modes" role="group" aria-label="Mode">
         <button type="button" data-mode="life"><span>Life</span></button>
         <button type="button" data-mode="lifespan"><span>Life$pan</span></button>
-        <button type="button" data-mode="entirety"><span>Entirety</span></button>
+        <button type="button" data-mode="lifespan-plus"><span>Life$pan+</span></button>
       </div>
       <p id="mode-note"></p>
     </div>
     <div class="brand">
-      <p class="eyebrow">v0.8.0</p>
+      <p class="eyebrow">v0.9.0</p>
       <h1 id="title">Life</h1>
-      <p class="dek" id="dek">Pick Life, Life$pan, or Entirety.</p>
+      <p class="dek" id="dek">Life, Life$pan, or Life$pan+.</p>
       <p id="retirement" class="retirement" hidden>Retirement is not built yet.</p>
       <div class="open-name">
         <label for="game-name">Game name</label>
@@ -43,7 +43,7 @@
           <svg id="figure" viewBox="0 0 160 130" aria-hidden="true"></svg>
           <dl class="stats">
             <div>
-              <dt>Age</dt>
+              <dt id="age-label">Age</dt>
               <dd id="age">—</dd>
             </div>
             <div>
@@ -100,6 +100,12 @@
       <p class="kicker" id="kicker"></p>
       <h2 id="event-title"></h2>
       <p id="event-detail"></p>
+      <figure id="review-card" class="review-card" hidden>
+        <p class="kicker">Review</p>
+        <ul id="review-odds"></ul>
+        <p id="review-result"></p>
+        <p id="review-rule"></p>
+      </figure>
       <figure id="flavor-card" hidden>
         <img id="flavor-still" alt="" width="240" height="180" />
         <figcaption id="flavor-caption"></figcaption>
