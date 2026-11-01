@@ -121,7 +121,7 @@ function pointFromQuery() {
 }
 
 function money(n) {
-  const sign = n < 0 ? "−" : "";
+  const sign = n < 0 ? "\u2212" : "";
   return `${sign}$${Math.abs(n).toLocaleString("en-US")}`;
 }
 
@@ -243,7 +243,8 @@ function lastSpin() {
 
 function logLine(entry) {
   if (entry.t === "decision" && entry.choice === "path") {
-    return `${entry.n}. Path ${entry.value} at ${entry.age}. Cash ${money(entry.cash)}.`;
+    const where = state?.mode === "life" ? entry.title : `at ${entry.age}`;
+    return `${entry.n}. Path ${entry.value} ${where}. Cash ${money(entry.cash)}.`;
   }
   if (entry.t === "decision") {
     const fate = entry.fate ? `, ${entry.fate}` : "";
@@ -253,7 +254,11 @@ function logLine(entry) {
     const stop = entry.discarded ? `, stop, ${entry.discarded} unused` : "";
     const pay = entry.paydayCash ? `, payday ${money(entry.paydayCash)}` : "";
     const reviewed = entry.reviews?.length ? `, promo ${entry.reviews.map((item) => item.id).join(", ")}` : "";
-    return `${entry.n}. Spin ${entry.roll}. ${entry.fromAge} → ${entry.toAge}${stop}${pay}${reviewed}. ${entry.title}. Cash ${money(entry.cash)}.`;
+    const year = state?.mode !== "life" && (entry.yearPay || entry.yearBill)
+      ? `, paid ${money(entry.yearPay)}, expenses ${money(entry.yearBill)}`
+      : "";
+    const span = state?.mode === "life" ? entry.title : `${entry.fromAge} \u2192 ${entry.toAge}`;
+    return `${entry.n}. Spin ${entry.roll}. ${span}${stop}${pay}${reviewed}${year}. Cash ${money(entry.cash)}.`;
   }
   if (entry.t === "resolve") {
     const name = entry.flavor ? entry.flavor.caption : entry.title;
@@ -265,7 +270,7 @@ function logLine(entry) {
 }
 
 function spaceMark(space) {
-  if (state?.mode === "life") return String(space.age - spec.meta.ageStart + 1);
+  if (state?.mode === "life") return "";
   return String(space.age);
 }
 
@@ -280,8 +285,9 @@ function spaceButton(space, mode) {
   btn.className = `space ${mode}`;
   btn.dataset.id = space.id;
   const name = spaceName(space);
-  btn.innerHTML = `<span class="age">${spaceMark(space)}</span><span class="name">${name}</span><i class="mark ${space.tone}"></i>${mode === "now" ? token() : ""}`;
-  btn.setAttribute("aria-label", `${spaceMark(space)} ${name}${mode === "now" ? ", you are here" : ""}`);
+  const mark = spaceMark(space);
+  btn.innerHTML = `${mark ? `<span class="age">${mark}</span>` : ""}<span class="name">${name}</span><i class="mark ${space.tone}"></i>${mode === "now" ? token() : ""}`;
+  btn.setAttribute("aria-label", `${mark ? `${mark} ` : ""}${name}${mode === "now" ? ", you are here" : ""}`);
   if (mode === "now") btn.setAttribute("aria-current", "true");
   btn.addEventListener("click", () => {
     inspect = space;
@@ -378,6 +384,8 @@ function renderBoard() {
     btn.style.left = `${point.x}px`;
     btn.style.top = `${point.y}px`;
     if (state.phase === "choose" && point.space.age === 18 && (point.lane === "study" || point.lane === "work")) {
+      btn.classList.add("pending");
+      if (point.lane === "work") btn.classList.add("alt");
       const tag = document.createElement("span");
       tag.className = "begin-tag";
       tag.textContent = point.lane === "study" ? "Begin study" : "Begin work";
@@ -489,7 +497,7 @@ function renderStory() {
   choicesEl.replaceChildren();
   if (!space) {
     showFlavor(null);
-    kickerEl.textContent = state.mode ? (state.mode === "life" ? "Choose" : "Age 18 · choose") : "";
+    kickerEl.textContent = state.mode ? "Choose" : "";
     titleEl.textContent = state.mode ? "Study, or work." : "";
     const income = isEntirety(state) ? triangleRates(spec, state.point).income : 1;
     const debt = Math.abs(spec.paths.study.spaces[0].cash);
@@ -503,7 +511,7 @@ function renderStory() {
     return;
   }
   const spun = lastSpin();
-  const bits = [state.mode === "life" ? `Square ${space.age - spec.meta.ageStart + 1}` : `Age ${space.age}`];
+  const bits = [state.mode === "life" ? "Event" : `Age ${space.age}`];
   if (space.kind === "stop") bits.push("stop");
   if (space.kind === "payday") bits.push(isYearMode(state) ? "promo?" : "payday");
   if (space.kind === "choice") bits.push("choice");
@@ -511,14 +519,20 @@ function renderStory() {
   const card = flavorSeen(space);
   showFlavor(card);
   if (card) bits.push(moodLine[card.mood] || card.mood);
-  kickerEl.textContent = bits.join(" · ");
+  kickerEl.textContent = bits.join(" \u00b7 ");
   titleEl.textContent = card ? card.caption : spaceName(space);
   const extra = [];
   if (!inspect && spun && spun.spaceId === space.id && state.mode === "life" && spun.paydayCash) {
     extra.push(`Payday on the way: ${money(spun.paydayCash)}.`);
   }
+  if (!inspect && spun && isYearMode(state) && (spun.yearPay || spun.yearBill)) {
+    extra.push(`Paid ${money(spun.yearPay)} and charged ${money(spun.yearBill)}.`);
+  }
   const reviews = !inspect && spun && spun.spaceId === space.id ? spun.reviews : null;
   showReview(reviews);
+  if (reviews?.length && (spun.yearPay || spun.yearBill)) {
+    reviewResultEl.textContent += ` Paid ${money(spun.yearPay)} and charged ${money(spun.yearBill)}.`;
+  }
   if (!inspect && spun && spun.spaceId === space.id && spun.discarded) {
     extra.push(`The move stopped here. ${spun.discarded} steps unused.`);
   }
@@ -535,7 +549,7 @@ function renderStory() {
     ]) {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "choice";
+      btn.className = accept ? "choice pending" : "choice pending alt";
       btn.textContent = label;
       btn.addEventListener("click", () => {
         state = resolveChoice(spec, state, accept);
@@ -552,7 +566,7 @@ function deltaMark(kind, delta) {
   if (!Number.isFinite(delta) || Math.abs(delta) < eps) return "";
   const plus = delta > 0;
   const good = kind === "income" ? plus : !plus;
-  const sign = plus ? "+" : "−";
+  const sign = plus ? "+" : "\u2212";
   const word = `${good ? "good" : "bad"}, ${plus ? "above" : "below"} the center`;
   return `<i class="delta ${good ? "good" : "bad"}" aria-label="${word}">${sign}</i>`;
 }
@@ -565,15 +579,16 @@ function applyModeChrome() {
   const mode = state?.mode || "";
   document.body.classList.toggle("mode-unset", !mode);
   document.body.classList.toggle("mode-plain", mode === "life" || mode === "lifespan");
+  document.body.classList.toggle("mode-span", mode === "lifespan");
   document.body.classList.toggle("mode-span-plus", mode === "lifespan-plus");
   document.body.classList.toggle("path-on", Boolean(state?.path));
   const title = mode === "lifespan" ? "Life$pan" : mode === "lifespan-plus" ? "Life$pan+" : "Life";
   document.title = title;
   titleHeading.textContent = title;
-  ageLabelEl.textContent = mode === "life" ? "Square" : "Age";
+  ageLabelEl.textContent = mode === "life" ? "Event" : "Age";
   if (!mode) dekEl.textContent = "Life, Life$pan, or Life$pan+.";
-  else if (mode === "life") dekEl.textContent = "Squares are not years.";
-  else dekEl.textContent = "Each square is one year.";
+  else if (mode === "life") dekEl.textContent = "Squares are events, not years.";
+  else dekEl.textContent = "Each square is one year. A move pays that year and charges its expenses.";
   retirementEl.hidden = mode !== "lifespan";
   payLabel.textContent = mode === "lifespan-plus" ? "Income" : "Pay";
   cashLabel.textContent = mode === "lifespan-plus" ? "Savings" : "Cash";
@@ -583,8 +598,8 @@ function applyModeChrome() {
   });
   const notes = {
     "": "",
-    life: "Squares are not years. Paydays stay paydays. No triangle.",
-    lifespan: "Each square is one year. A former payday is Promo?. No triangle.",
+    life: "Squares are events, not years. Paydays stay paydays. A move does not pay or charge every space.",
+    lifespan: "Each square is one year. Moving one space pays that year's salary and charges that year's expenses. Promo? stays on former paydays.",
     "lifespan-plus": "Same Promo? tile, except the two 1-in-10 spins move the triangle and do not change pay.",
   };
   modeNote.textContent = notes[mode] || "";
@@ -642,9 +657,14 @@ function renderStats() {
   applyModeChrome();
   const space = currentSpace(spec, state);
   const age = space ? space.age : spec.meta.ageStart;
-  if (state.mode === "life") ageEl.textContent = space ? String(space.age - spec.meta.ageStart + 1) : "—";
+  if (state.mode === "life") ageEl.textContent = "\u2014";
   else ageEl.textContent = space ? String(space.age) : "18";
   if (!isEntirety(state)) {
+    if (state.mode === "lifespan") {
+      const portrait = portraitStats(spec, state);
+      expensesEl.className = "";
+      expensesEl.textContent = money(portrait.spending);
+    }
     savingsEl.textContent = money(state.cash);
     savingsEl.className = "";
     payEl.className = "";
@@ -664,10 +684,10 @@ function renderStats() {
   const borrowNote = portrait.borrowing > 0 ? `<span class="borrow-note">includes 4% borrowing</span>` : "";
   expensesEl.className = "bad";
   expensesEl.innerHTML = `${money(portrait.annual)}${deltaMark("expense", portrait.expenseDelta)}${borrowNote}`;
-  deathChanceEl.innerHTML = `${chanceText(portrait.death)}${deltaMark("death", portrait.deathDelta)}<span class="qx-gap">${spec.mortality.life.name} ${chanceText(portrait.qLife)} · ${spec.mortality.annuity.name} ${chanceText(portrait.qAnn)}</span>`;
+  deathChanceEl.innerHTML = `${chanceText(portrait.death)}${deltaMark("death", portrait.deathDelta)}<span class="qx-gap">${spec.mortality.life.name} ${chanceText(portrait.qLife)} \u00b7 ${spec.mortality.annuity.name} ${chanceText(portrait.qAnn)}</span>`;
   yearsEl.textContent = portrait.years.toFixed(1);
   const rates = portrait.rates;
-  leverReadout.textContent = `Health ${rates.h.toFixed(2)} · Work ${rates.w.toFixed(2)} · Frugality ${rates.f.toFixed(2)}. Income ×${rates.income.toFixed(2)}. Spend ${(rates.spend * 100).toFixed(0)}%.`;
+  leverReadout.textContent = `Health ${rates.h.toFixed(2)} \u00b7 Work ${rates.w.toFixed(2)} \u00b7 Frugality ${rates.f.toFixed(2)}. Income \u00d7${rates.income.toFixed(2)}. Spend ${(rates.spend * 100).toFixed(0)}%.`;
   const q = deathProbability(spec, age, rates.axis.h);
   drawWheel(q);
   if (wedgeNote) wedgeNote.textContent = `Death wedge ${chanceText(q)} of the circle.`;
@@ -1006,7 +1026,7 @@ function takeTurn() {
 actBtn.addEventListener("click", takeTurn);
 
 copyBtn.addEventListener("click", async () => {
-  const text = [`game ${gameName() || "unnamed"}`, leverReadout.textContent, `seed ${state.seed}`, ...state.log.map(logLine)].join("\n");
+  const text = [`game ${gameName() || "unnamed"}`, leverReadout.textContent, `seed ${state.seed}`, ...state.log.map(logLine)].join("\\n");
   try {
     await navigator.clipboard.writeText(text);
     copyBtn.textContent = "Copied";
