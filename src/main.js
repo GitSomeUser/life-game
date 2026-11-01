@@ -252,7 +252,7 @@ function logLine(entry) {
   if (entry.t === "spin") {
     const stop = entry.discarded ? `, stop, ${entry.discarded} unused` : "";
     const pay = entry.paydayCash ? `, payday ${money(entry.paydayCash)}` : "";
-    const reviewed = entry.reviews?.length ? `, review ${entry.reviews.map((item) => item.id).join(", ")}` : "";
+    const reviewed = entry.reviews?.length ? `, promo ${entry.reviews.map((item) => item.id).join(", ")}` : "";
     return `${entry.n}. Spin ${entry.roll}. ${entry.fromAge} → ${entry.toAge}${stop}${pay}${reviewed}. ${entry.title}. Cash ${money(entry.cash)}.`;
   }
   if (entry.t === "resolve") {
@@ -270,7 +270,7 @@ function spaceMark(space) {
 }
 
 function spaceName(space) {
-  if (isYearMode(state) && space.kind === "payday") return "Review";
+  if (isYearMode(state) && space.kind === "payday") return "Promo?";
   return space.title;
 }
 
@@ -447,16 +447,14 @@ function showFlavor(card) {
 
 function reviewSentence(review) {
   const pay = money(review.salaryAfter);
-  if (review.id === "closer") {
-    return state.mode === "lifespan"
-      ? `Closer to the goal. Pay is ${pay}.`
-      : `The triangle moves closer to the goal. Income is ${pay}.`;
+  if (review.id === "closer") return `The triangle moves slightly closer to the goal. Pay stays ${pay}.`;
+  if (review.id === "away") return `The triangle moves slightly away from the goal. Pay stays ${pay}.`;
+  if (review.id === "big-bonus") {
+    return `Temporary pay bonus ${money(review.cashDelta)}, this year only, and a permanent pay increase. Pay is ${pay}.`;
   }
-  if (review.id === "away") {
+  if (review.id === "demo") {
     const held = review.held ? " The demotion stops at 80% of starting pay." : "";
-    return state.mode === "lifespan"
-      ? `Away from the goal. Pay is ${pay}.${held}`
-      : `The triangle moves away from the goal. Income is ${pay}.${held}`;
+    return `Temporary expense increase ${money(review.expenseAdded)}, this year only, and a permanent pay decrease. Pay is ${pay}.${held}`;
   }
   if (review.id === "temp-bonus") return `Temporary pay bonus, this year only: ${money(review.cashDelta)}.`;
   if (review.id === "temp-cut") return `Temporary pay cut, this year only: ${money(review.cashDelta)}.`;
@@ -475,13 +473,14 @@ function showReview(reviews) {
   }
   reviewCardEl.hidden = false;
   reviewOddsEl.replaceChildren();
-  for (const band of spec.meta.review.bands) {
+  const bands = spec.meta.review[state.mode]?.bands || [];
+  for (const band of bands) {
     const li = document.createElement("li");
     li.textContent = band.label;
     reviewOddsEl.append(li);
   }
   reviewResultEl.textContent = reviews.map((review) => `Age ${review.age}: ${reviewSentence(review)}`).join(" ");
-  reviewRuleEl.textContent = "A permanent promotion cannot be undone by a later demotion below 80% of starting pay. Temporary means this year only.";
+  reviewRuleEl.textContent = "A later demotion cannot drop pay below 80% of starting pay. Temporary means this year only.";
   reviewCardEl.scrollIntoView({ block: "nearest" });
 }
 
@@ -506,7 +505,7 @@ function renderStory() {
   const spun = lastSpin();
   const bits = [state.mode === "life" ? `Square ${space.age - spec.meta.ageStart + 1}` : `Age ${space.age}`];
   if (space.kind === "stop") bits.push("stop");
-  if (space.kind === "payday") bits.push(isYearMode(state) ? "review" : "payday");
+  if (space.kind === "payday") bits.push(isYearMode(state) ? "promo?" : "payday");
   if (space.kind === "choice") bits.push("choice");
   if (inspect && (!currentSpace(spec, state) || inspect.id !== currentSpace(spec, state).id)) bits.push("on the board");
   const card = flavorSeen(space);
@@ -526,7 +525,7 @@ function renderStory() {
   const here = currentSpace(spec, state);
   if (!inspect && state.phase === "choice" && here?.choice) extra.unshift(choiceLine(here));
   let lead = card ? "" : space.detail;
-  if (!card && isYearMode(state) && space.kind === "payday") lead = "Review year. The odds are on the card.";
+  if (!card && isYearMode(state) && space.kind === "payday") lead = "Promo? The odds for this mode are on the card.";
   detailEl.textContent = [lead, ...extra].filter(Boolean).join(" ");
 
   if (state.phase === "choice" && here?.choice) {
@@ -585,8 +584,8 @@ function applyModeChrome() {
   const notes = {
     "": "",
     life: "Squares are not years. Paydays stay paydays. No triangle.",
-    lifespan: "Each square is one year. A former payday is a review.",
-    "lifespan-plus": "Same review as Life$pan, plus the triangle, both mortality tables, the walker, income, expenses, savings, and 4% interest or borrowing.",
+    lifespan: "Each square is one year. A former payday is Promo?. No triangle.",
+    "lifespan-plus": "Same Promo? tile, except the two 1-in-10 spins move the triangle and do not change pay.",
   };
   modeNote.textContent = notes[mode] || "";
   if (!state.path) {
