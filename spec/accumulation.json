@@ -1,7 +1,7 @@
 {
   "meta": {
     "stage": 2,
-    "version": "0.9.0",
+    "version": "0.9.1",
     "ageStart": 18,
     "ageEnd": 68,
     "yearsPerSpace": 1,
@@ -15,13 +15,13 @@
     "rules": [
       "Before the path starts, pick Life, Life$pan, or Life$pan+. The choice locks when Study or Work begins.",
       "Life is the traditional Game of Life. Squares are not years. Paydays stay paydays. No triangle.",
-      "Life$pan: each square is one year. Payday tiles become a review. No triangle. Retirement is named and is not built in this version.",
-      "Life$pan+ is the same years and the same review as Life$pan, plus the triangle, both mortality tables, the walker, income, expenses, savings, and 4% interest or borrowing. This replaces the name Entirety.",
+      "Life$pan: each square is one year. Former paydays are named Promo?. No triangle. Retirement is named and is not built in this version.",
+      "Life$pan+ is the same years and the same Promo? tile as Life$pan, plus the triangle, both mortality tables, the walker, income, expenses, savings, and 4% interest or borrowing. This replaces the name Entirety. Its two 1-in-10 spins move the triangle and do not change pay.",
       "On Life$pan+, the spinner shows 1 through 10, plus a death wedge. The wedge is this year's death probability, as a fraction of the circle. Landing in it ends the life on the current square. No numbered move.",
       "You resolve the space you land on. Spaces you pass do not fire, except Payday on Life, and except a review on Life$pan and Life$pan+.",
       "On Life, Payday adds your current salary when you land on it or pass it.",
-      "On Life$pan and Life$pan+, landing on or passing a former payday runs the review in meta.review.",
-      "A permanent promotion cannot be undone by a later demotion below 80% of starting pay. A temporary pay change is this year only.",
+      "On Life$pan and Life$pan+, landing on or passing a former payday runs one Promo? outcome from meta.review. The card shows the odds for the active mode.",
+      "A later demotion cannot drop pay below 80% of starting pay. A temporary pay change, and a temporary expense increase, are this year only.",
       "A stop ends the move even if steps remain. Then you spin again.",
       "Ages 18 to 21 are a fork. Study and Work each have four spaces, then one shared track from 22 to 68. On Life those squares are not years. On Life$pan and Life$pan+ each square is one year.",
       "At 68 the working track ends. The climb has no downslope. Decumulation is not in this version. On Life$pan+, positive savings earn 4% a year and negative savings pay the 4% borrowing charge. Life and Life$pan do neither. Retirement spaces are not in this version.",
@@ -29,8 +29,8 @@
     ],
     "modes": {
       "life": "Traditional Game of Life. Squares are not years. Paydays stay paydays. No triangle.",
-      "lifespan": "Each square is one year. Payday tiles become a review: promo, demo, or stay. No triangle.",
-      "lifespan-plus": "Same years and the same review as Life$pan, plus the triangle, both mortality tables, the walker, income, expenses, savings, and 4% interest or borrowing."
+      "lifespan": "Each square is one year. Former paydays are named Promo?. No triangle.",
+      "lifespan-plus": "Same years and the same Promo? tile as Life$pan, plus the triangle, both mortality tables, the walker, income, expenses, savings, and 4% interest or borrowing. The two 1-in-10 spins move the triangle and do not change pay."
     },
     "home": "downPayment",
     "sources": [
@@ -54,56 +54,104 @@
       "interestRate": 0.04
     },
     "review": {
-      "note": "Life$pan and Life$pan+ only, when you land on or pass a former payday. Life paydays stay paydays. The draw uses its own stream, so the spinner does not move.",
+      "note": "Life$pan and Life$pan+ only, when you land on or pass a former payday named Promo?. Life paydays stay paydays. One draw, one outcome. The draw uses its own stream, so the spinner does not move. The two 1-in-10 slots differ by mode. The other five are shared.",
       "shift": 0.05,
       "tempPay": 0.1,
       "permanentPromo": 0.1,
       "expenseBump": 0.05,
       "promoFloor": 0.8,
-      "bands": [
-        {
-          "id": "closer",
-          "count": 10,
-          "per": 100,
-          "label": "1 in 10. Move slightly closer to the goal."
-        },
-        {
-          "id": "away",
-          "count": 10,
-          "per": 100,
-          "label": "1 in 10. Move slightly away from the goal."
-        },
-        {
-          "id": "temp-bonus",
-          "count": 20,
-          "per": 100,
-          "label": "2 in 10. A temporary pay bonus."
-        },
-        {
-          "id": "temp-cut",
-          "count": 20,
-          "per": 100,
-          "label": "2 in 10. A temporary pay cut."
-        },
-        {
-          "id": "promo",
-          "count": 20,
-          "per": 100,
-          "label": "2 in 10. A permanent pay promotion."
-        },
-        {
-          "id": "expenses",
-          "count": 2,
-          "per": 100,
-          "label": "2 in 100. Expenses increase."
-        },
-        {
-          "id": "stay",
-          "count": 18,
-          "per": 100,
-          "label": "The rest. Stay the same."
-        }
-      ]
+      "lifespan": {
+        "bands": [
+          {
+            "id": "big-bonus",
+            "count": 10,
+            "per": 100,
+            "label": "1 in 10. A temporary pay bonus and a permanent pay increase."
+          },
+          {
+            "id": "demo",
+            "count": 10,
+            "per": 100,
+            "label": "1 in 10. A temporary expense increase and a permanent pay decrease."
+          },
+          {
+            "id": "temp-bonus",
+            "count": 20,
+            "per": 100,
+            "label": "2 in 10. A temporary pay bonus, this year only."
+          },
+          {
+            "id": "temp-cut",
+            "count": 20,
+            "per": 100,
+            "label": "2 in 10. A temporary pay cut, this year only."
+          },
+          {
+            "id": "promo",
+            "count": 20,
+            "per": 100,
+            "label": "2 in 10. A permanent pay promotion."
+          },
+          {
+            "id": "expenses",
+            "count": 2,
+            "per": 100,
+            "label": "2 in 100. Expenses increase."
+          },
+          {
+            "id": "stay",
+            "count": 18,
+            "per": 100,
+            "label": "The rest. Stay the same."
+          }
+        ]
+      },
+      "lifespan-plus": {
+        "bands": [
+          {
+            "id": "closer",
+            "count": 10,
+            "per": 100,
+            "label": "1 in 10. Move the triangle point slightly closer to the goal."
+          },
+          {
+            "id": "away",
+            "count": 10,
+            "per": 100,
+            "label": "1 in 10. Move the triangle point slightly away from the goal."
+          },
+          {
+            "id": "temp-bonus",
+            "count": 20,
+            "per": 100,
+            "label": "2 in 10. A temporary pay bonus, this year only."
+          },
+          {
+            "id": "temp-cut",
+            "count": 20,
+            "per": 100,
+            "label": "2 in 10. A temporary pay cut, this year only."
+          },
+          {
+            "id": "promo",
+            "count": 20,
+            "per": 100,
+            "label": "2 in 10. A permanent pay promotion."
+          },
+          {
+            "id": "expenses",
+            "count": 2,
+            "per": 100,
+            "label": "2 in 100. Expenses increase."
+          },
+          {
+            "id": "stay",
+            "count": 18,
+            "per": 100,
+            "label": "The rest. Stay the same."
+          }
+        ]
+      }
     }
   },
   "paths": {
