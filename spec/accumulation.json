@@ -1,7 +1,7 @@
 {
   "meta": {
     "stage": 2,
-    "version": "0.10.1",
+    "version": "0.10.2",
     "ageStart": 18,
     "ageEnd": 68,
     "yearsPerSpace": 1,
@@ -26,7 +26,7 @@
       "Ages 18 to 21 are a fork. Study and Work each have four spaces, then one shared track from 22 to 68. On Life those squares are not years. On Life$pan and Life$pan+ each square is one year.",
       "At 68 the working track ends. The climb has no downslope. Decumulation is not in this version. On Life$pan+, positive savings earn 4% a year and negative savings pay the 4% borrowing charge. Life and Life$pan do neither. Retirement spaces are not in this version.",
       "One point in the triangle sets health, work, and frugality. Weights are inverse distance to the vertices, so an edge does not freeze the far one. It locks when the path starts. Reviews on Life$pan+ may nudge it later. The center is still one third.",
-      "A click on Life, Life$pan, or Life$pan+ starts a new game. Resume loads the name you typed. An empty name does nothing. Credit-card debt stacks on every space you move through, and the due square collects the balance even when you only pass it."
+      "A click on Life, Life$pan, or Life$pan+ starts a new game. Resume loads the name you typed. An empty name does nothing. Every decision uses that same treatment: waiting options vibrate between bold and dim, the picked one stays steady and bold, and the others stay dim. That includes Study or Work, a yes or no, and any other choice. Credit-card debt stacks on every space you move through, and the due square collects the balance even when you only pass it."
     ],
     "modes": {
       "life": "Traditional Game of Life. Squares are events. Squares are not years. Paydays stay paydays. A move does not pay or charge every space. No triangle.",
