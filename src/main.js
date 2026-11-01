@@ -5,6 +5,7 @@ import {
   currentSpace,
   deathProbability,
   isEntirety,
+  isYearMode,
   portraitStats,
   resolveChoice,
   spin,
@@ -16,6 +17,11 @@ const boardEl = document.querySelector("#board");
 const kickerEl = document.querySelector("#kicker");
 const titleEl = document.querySelector("#event-title");
 const detailEl = document.querySelector("#event-detail");
+const reviewCardEl = document.querySelector("#review-card");
+const reviewOddsEl = document.querySelector("#review-odds");
+const reviewResultEl = document.querySelector("#review-result");
+const reviewRuleEl = document.querySelector("#review-rule");
+const ageLabelEl = document.querySelector("#age-label");
 const choicesEl = document.querySelector("#choices");
 const flavorCardEl = document.querySelector("#flavor-card");
 const flavorStillEl = document.querySelector("#flavor-still");
@@ -95,9 +101,9 @@ if (params.get("anim") === "0") animEl.checked = false;
 if (params.get("speed") === "1") speedEl.checked = true;
 
 function modeFromQuery() {
-  const alias = { novice: "life", beginner: "lifespan", advanced: "entirety" };
+  const alias = { novice: "life", beginner: "lifespan", advanced: "lifespan-plus", entirety: "lifespan-plus" };
   const mode = alias[params.get("mode")] || params.get("mode");
-  if (mode === "life" || mode === "lifespan" || mode === "entirety") return mode;
+  if (mode === "life" || mode === "lifespan" || mode === "lifespan-plus") return mode;
   return null;
 }
 
@@ -246,7 +252,8 @@ function logLine(entry) {
   if (entry.t === "spin") {
     const stop = entry.discarded ? `, stop, ${entry.discarded} unused` : "";
     const pay = entry.paydayCash ? `, payday ${money(entry.paydayCash)}` : "";
-    return `${entry.n}. Spin ${entry.roll}. ${entry.fromAge} → ${entry.toAge}${stop}${pay}. ${entry.title}. Cash ${money(entry.cash)}.`;
+    const reviewed = entry.reviews?.length ? `, review ${entry.reviews.map((item) => item.id).join(", ")}` : "";
+    return `${entry.n}. Spin ${entry.roll}. ${entry.fromAge} → ${entry.toAge}${stop}${pay}${reviewed}. ${entry.title}. Cash ${money(entry.cash)}.`;
   }
   if (entry.t === "resolve") {
     const name = entry.flavor ? entry.flavor.caption : entry.title;
@@ -257,13 +264,24 @@ function logLine(entry) {
   return `${entry.n}. ${entry.t}`;
 }
 
+function spaceMark(space) {
+  if (state?.mode === "life") return String(space.age - spec.meta.ageStart + 1);
+  return String(space.age);
+}
+
+function spaceName(space) {
+  if (isYearMode(state) && space.kind === "payday") return "Review";
+  return space.title;
+}
+
 function spaceButton(space, mode) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = `space ${mode}`;
   btn.dataset.id = space.id;
-  btn.innerHTML = `<span class="age">${space.age}</span><span class="name">${space.title}</span><i class="mark ${space.tone}"></i>${mode === "now" ? token() : ""}`;
-  btn.setAttribute("aria-label", `${space.age} ${space.title}${mode === "now" ? ", you are here" : ""}`);
+  const name = spaceName(space);
+  btn.innerHTML = `<span class="age">${spaceMark(space)}</span><span class="name">${name}</span><i class="mark ${space.tone}"></i>${mode === "now" ? token() : ""}`;
+  btn.setAttribute("aria-label", `${spaceMark(space)} ${name}${mode === "now" ? ", you are here" : ""}`);
   if (mode === "now") btn.setAttribute("aria-current", "true");
   btn.addEventListener("click", () => {
     inspect = space;
@@ -427,43 +445,88 @@ function showFlavor(card) {
   flavorCaptionEl.textContent = moodLine[card.mood] || card.mood;
 }
 
+function reviewSentence(review) {
+  const pay = money(review.salaryAfter);
+  if (review.id === "closer") {
+    return state.mode === "lifespan"
+      ? `Closer to the goal. Pay is ${pay}.`
+      : `The triangle moves closer to the goal. Income is ${pay}.`;
+  }
+  if (review.id === "away") {
+    const held = review.held ? " The demotion stops at 80% of starting pay." : "";
+    return state.mode === "lifespan"
+      ? `Away from the goal. Pay is ${pay}.${held}`
+      : `The triangle moves away from the goal. Income is ${pay}.${held}`;
+  }
+  if (review.id === "temp-bonus") return `Temporary pay bonus, this year only: ${money(review.cashDelta)}.`;
+  if (review.id === "temp-cut") return `Temporary pay cut, this year only: ${money(review.cashDelta)}.`;
+  if (review.id === "promo") return `Permanent pay promotion. Pay is ${pay}. A later demotion cannot go below 80% of starting pay.`;
+  if (review.id === "expenses") return `Expenses increase by ${money(review.expenseAdded)} this year, and the increase stays.`;
+  return "Stay the same.";
+}
+
+function showReview(reviews) {
+  if (!reviews?.length) {
+    reviewCardEl.hidden = true;
+    reviewOddsEl.replaceChildren();
+    reviewResultEl.textContent = "";
+    reviewRuleEl.textContent = "";
+    return;
+  }
+  reviewCardEl.hidden = false;
+  reviewOddsEl.replaceChildren();
+  for (const band of spec.meta.review.bands) {
+    const li = document.createElement("li");
+    li.textContent = band.label;
+    reviewOddsEl.append(li);
+  }
+  reviewResultEl.textContent = reviews.map((review) => `Age ${review.age}: ${reviewSentence(review)}`).join(" ");
+  reviewRuleEl.textContent = "A permanent promotion cannot be undone by a later demotion below 80% of starting pay. Temporary means this year only.";
+  reviewCardEl.scrollIntoView({ block: "nearest" });
+}
+
 function renderStory() {
   const space = inspect || currentSpace(spec, state);
   choicesEl.replaceChildren();
   if (!space) {
     showFlavor(null);
-    kickerEl.textContent = state.mode ? "Age 18 · choose" : "Pick a mode";
-    titleEl.textContent = state.mode ? "Study, or work." : "Life, Life$pan, or Entirety.";
+    kickerEl.textContent = state.mode ? (state.mode === "life" ? "Choose" : "Age 18 · choose") : "";
+    titleEl.textContent = state.mode ? "Study, or work." : "";
     const income = isEntirety(state) ? triangleRates(spec, state.point).income : 1;
     const debt = Math.abs(spec.paths.study.spaces[0].cash);
     const studyPay = Math.round(spec.meta.studySalary * income);
     const workPay = Math.round(spec.meta.workSalary * income);
+    const unit = state.mode === "life" ? "squares" : "years";
     detailEl.textContent = state.mode
-      ? `Study costs ${money(debt)} now and pays ${money(studyPay)} a year after 21. Work pays ${money(workPay)} from the first job. Same number of years either way.`
-      : "Life is the traditional game. Life$pan is the entire life. Entirety keeps the triangle and the death wedge. Retirement is not built yet.";
+      ? `Study costs ${money(debt)} now and pays ${money(studyPay)} a year after 21. Work pays ${money(workPay)} from the first job. Same number of ${unit} either way.`
+      : "";
+    showReview(null);
     return;
   }
   const spun = lastSpin();
-  const bits = [`Age ${space.age}`];
+  const bits = [state.mode === "life" ? `Square ${space.age - spec.meta.ageStart + 1}` : `Age ${space.age}`];
   if (space.kind === "stop") bits.push("stop");
-  if (space.kind === "payday") bits.push("payday");
+  if (space.kind === "payday") bits.push(isYearMode(state) ? "review" : "payday");
   if (space.kind === "choice") bits.push("choice");
   if (inspect && (!currentSpace(spec, state) || inspect.id !== currentSpace(spec, state).id)) bits.push("on the board");
   const card = flavorSeen(space);
   showFlavor(card);
   if (card) bits.push(moodLine[card.mood] || card.mood);
   kickerEl.textContent = bits.join(" · ");
-  titleEl.textContent = card ? card.caption : space.title;
+  titleEl.textContent = card ? card.caption : spaceName(space);
   const extra = [];
-  if (!inspect && spun && spun.spaceId === space.id && spun.paydayCash) {
+  if (!inspect && spun && spun.spaceId === space.id && state.mode === "life" && spun.paydayCash) {
     extra.push(`Payday on the way: ${money(spun.paydayCash)}.`);
   }
+  const reviews = !inspect && spun && spun.spaceId === space.id ? spun.reviews : null;
+  showReview(reviews);
   if (!inspect && spun && spun.spaceId === space.id && spun.discarded) {
     extra.push(`The move stopped here. ${spun.discarded} steps unused.`);
   }
   const here = currentSpace(spec, state);
   if (!inspect && state.phase === "choice" && here?.choice) extra.unshift(choiceLine(here));
-  const lead = card ? "" : space.detail;
+  let lead = card ? "" : space.detail;
+  if (!card && isYearMode(state) && space.kind === "payday") lead = "Review year. The odds are on the card.";
   detailEl.textContent = [lead, ...extra].filter(Boolean).join(" ");
 
   if (state.phase === "choice" && here?.choice) {
@@ -503,36 +566,36 @@ function applyModeChrome() {
   const mode = state?.mode || "";
   document.body.classList.toggle("mode-unset", !mode);
   document.body.classList.toggle("mode-plain", mode === "life" || mode === "lifespan");
-  document.body.classList.toggle("mode-entirety", mode === "entirety");
+  document.body.classList.toggle("mode-span-plus", mode === "lifespan-plus");
   document.body.classList.toggle("path-on", Boolean(state?.path));
-  const title = mode === "lifespan" ? "Life$pan" : mode === "entirety" ? "Entirety" : "Life";
+  const title = mode === "lifespan" ? "Life$pan" : mode === "lifespan-plus" ? "Life$pan+" : "Life";
   document.title = title;
   titleHeading.textContent = title;
-  if (!mode) dekEl.textContent = "Pick Life, Life$pan, or Entirety.";
-  else if (mode === "lifespan") dekEl.textContent = "The entire life, ages 18–68.";
-  else if (mode === "entirety") dekEl.textContent = "The entire life with realism, ages 18–68.";
-  else dekEl.textContent = "A working life, ages 18–68.";
+  ageLabelEl.textContent = mode === "life" ? "Square" : "Age";
+  if (!mode) dekEl.textContent = "Life, Life$pan, or Life$pan+.";
+  else if (mode === "life") dekEl.textContent = "Squares are not years.";
+  else dekEl.textContent = "Each square is one year.";
   retirementEl.hidden = mode !== "lifespan";
-  payLabel.textContent = mode === "entirety" ? "Income" : "Pay";
-  cashLabel.textContent = mode === "entirety" ? "Savings" : "Cash";
+  payLabel.textContent = mode === "lifespan-plus" ? "Income" : "Pay";
+  cashLabel.textContent = mode === "lifespan-plus" ? "Savings" : "Cash";
   document.querySelectorAll("[data-mode]").forEach((btn) => {
     btn.setAttribute("aria-pressed", btn.dataset.mode === mode ? "true" : "false");
     btn.disabled = Boolean(state.path);
   });
   const notes = {
     "": "",
-    life: "Traditional Game of Life. Age, cash, and pay. The spinner is 1 through 10.",
-    lifespan: "",
-    entirety: "Triangle during setup. Both mortality tables, the walker, income, expenses, and savings.",
+    life: "Squares are not years. Paydays stay paydays. No triangle.",
+    lifespan: "Each square is one year. A former payday is a review.",
+    "lifespan-plus": "Same review as Life$pan, plus the triangle, both mortality tables, the walker, income, expenses, savings, and 4% interest or borrowing.",
   };
   modeNote.textContent = notes[mode] || "";
   if (!state.path) {
-    if (mode === "entirety") {
+    if (mode === "lifespan-plus") {
       setupLead.textContent = "Drag the point. The triangle hides when Study or Work begins.";
     } else if (mode === "life" || mode === "lifespan") {
       setupLead.textContent = "You can still flip the mode. It locks when Study or Work begins.";
     } else {
-      setupLead.textContent = "Pick Life, Life$pan, or Entirety.";
+      setupLead.textContent = "Life, Life$pan, or Life$pan+.";
     }
   }
   const roster = playerRoster();
@@ -580,7 +643,8 @@ function renderStats() {
   applyModeChrome();
   const space = currentSpace(spec, state);
   const age = space ? space.age : spec.meta.ageStart;
-  ageEl.textContent = space ? String(space.age) : "18";
+  if (state.mode === "life") ageEl.textContent = space ? String(space.age - spec.meta.ageStart + 1) : "—";
+  else ageEl.textContent = space ? String(space.age) : "18";
   if (!isEntirety(state)) {
     savingsEl.textContent = money(state.cash);
     savingsEl.className = "";
@@ -733,8 +797,8 @@ function miniMark(space, mode) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = `mini ${mode}`;
-  btn.title = `${space.age} ${space.title}`;
-  btn.setAttribute("aria-label", `${space.age} ${space.title}`);
+  btn.title = `${spaceMark(space)} ${spaceName(space)}`;
+  btn.setAttribute("aria-label", `${spaceMark(space)} ${spaceName(space)}`);
   btn.addEventListener("click", () => {
     inspect = space;
     renderStory();
