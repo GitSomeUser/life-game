@@ -381,20 +381,34 @@ function renderBoard() {
     if (mode === "off") btn.classList.add("off");
     btn.style.left = `${point.x}px`;
     btn.style.top = `${point.y}px`;
-    if (state.phase === "choose" && point.space.age === 18 && (point.lane === "study" || point.lane === "work")) {
-      btn.classList.add("pending");
-      if (point.lane === "work") btn.classList.add("alt");
-      const tag = document.createElement("span");
-      tag.className = "begin-tag";
-      tag.textContent = point.lane === "study" ? "Begin study" : "Begin work";
-      btn.append(tag);
-      btn.disabled = !gameName() || !state.mode;
-      btn.addEventListener("click", (event) => {
-        event.stopPropagation();
-        if (!gameName() || !state.mode) return;
-        startPath(point.lane);
-        render();
-      });
+    if (point.space.age === 18 && (point.lane === "study" || point.lane === "work")) {
+      btn.classList.add("choice-space");
+      const name = btn.querySelector(".name");
+      const waiting = state.phase === "choose" && !state.path;
+      if (waiting) {
+        btn.classList.add("pending");
+        const alt = point.lane === "work";
+        if (alt) btn.classList.add("alt");
+        name?.classList.add("vibrate");
+        if (alt) name?.classList.add("alt");
+        const tag = document.createElement("span");
+        tag.className = alt ? "begin-tag vibrate alt" : "begin-tag vibrate";
+        tag.textContent = point.lane === "study" ? "Begin study" : "Begin work";
+        btn.append(tag);
+        btn.disabled = !gameName() || !state.mode;
+        btn.setAttribute("aria-pressed", "false");
+        btn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          if (!gameName() || !state.mode) return;
+          startPath(point.lane);
+          render();
+        });
+      } else if (state.path) {
+        const picked = point.lane === state.path;
+        btn.classList.add(picked ? "picked" : "dim");
+        name?.classList.add(picked ? "steady" : "dim-choice");
+        btn.setAttribute("aria-pressed", picked ? "true" : "false");
+      }
     }
     track.append(btn);
   }
@@ -549,8 +563,12 @@ function renderStory() {
     ]) {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = accept ? "choice pending" : "choice pending alt";
-      btn.textContent = label;
+      btn.className = "choice decision";
+      btn.setAttribute("aria-pressed", "false");
+      const span = document.createElement("span");
+      span.className = accept ? "vibrate" : "vibrate alt";
+      span.textContent = label;
+      btn.append(span);
       btn.addEventListener("click", () => {
         state = resolveChoice(spec, state, accept);
         inspect = null;
