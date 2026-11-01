@@ -1,6 +1,7 @@
 /**
  * Accumulation simulation. Reads spec/accumulation.json.
- * Deterministic: spins, reviews, risky choices, and flavor cards use separate streams.
+ * Spins, reviews, the operation, and flavor cards use separate streams.
+ * An investment rolls a fresh chance each landing. It is not on those streams.
  * The triangle sets income, the spending rate, and the death blend.
  * Weights are inverse distance to the vertices.
  * Life$pan+ pays 4% a year on positive savings and charges 4% when savings are negative.
@@ -362,6 +363,22 @@ function scaleIncome(amount, income) {
   return Math.round(amount * income);
 }
 
+let investRandom = Math.random;
+
+export function setInvestRandom(fn) {
+  investRandom = typeof fn === "function" ? fn : Math.random;
+}
+
+export function drawInvestChance(random = investRandom) {
+  return (1 + Math.floor(random() * 8)) / 10;
+}
+
+function moneyEffect(effect, mode) {
+  if (!effect) return 0;
+  if (mode === "life" && Number.isFinite(effect.lifeCash)) return effect.lifeCash;
+  return effect.cash || 0;
+}
+
 function nextUnit(a) {
   let x = a | 0;
   x = (x + 0x6d2b79f5) | 0;
@@ -394,12 +411,14 @@ export function createGame(spec, seed, point, mode) {
     point: parsePoint(point),
     phase: "choose",
     pendingChoiceId: null,
+    investOffer: null,
+    lastChoice: null,
     death: null,
     log: [],
   };
 }
 
-function applyEffects(cash, salary, effect, rates, salaryBase = 0) {
+function applyEffects(cash, salary, effect, rates, salaryBase = 0, mode = null) {
   if (!effect) return { cash, salary, salaryBase, cashDelta: 0, salaryDelta: 0, salarySet: null };
   const income = rates?.income ?? 1;
   let cashDelta = 0;
@@ -416,9 +435,10 @@ function applyEffects(cash, salary, effect, rates, salaryBase = 0) {
     salaryDelta = delta;
     salaryBase += effect.salaryDelta;
   }
-  if (effect.cash) {
-    cash += effect.cash;
-    cashDelta = effect.cash;
+  const hit = moneyEffect(effect, mode);
+  if (hit) {
+    cash += hit;
+    cashDelta = hit;
   }
   return { cash, salary, salaryBase, cashDelta, salaryDelta, salarySet };
 }
@@ -451,10 +471,11 @@ export function freshSeed(now, nonce, previous = 0) {
   return seed;
 }
 
-function stepCards(spec, balance, space) {
-  const rate = spec.meta.cardRate || 0;
+function stepCards(spec, balance, space, mode) {
+  const rate = mode === "life" && Number.isFinite(spec.meta.lifeCardRate) ? spec.meta.lifeCardRate : (spec.meta.cardRate || 0);
+  const start = mode === "life" && Number.isFinite(space.lifeCardStart) ? space.lifeCardStart : (space.cardStart || 0);
   let next = balance || 0;
-  if (space.card === "open") next += space.cardStart || 0;
+  if (space.card === "open") next += start;
   else if (next > 0) next = Math.round(next * (1 + rate));
   if (space.card === "stack" && next > 0) next += space.cardAdd || 0;
   if (space.card === "due") return { balance: 0, paid: next };
@@ -491,7 +512,7 @@ function settleLanding(spec, state, space) {
   }
   const applied = space.flavor
     ? { cash: state.cash, salary: state.salary, salaryBase: state.salaryBase || 0, cashDelta: 0, salaryDelta: 0, salarySet: null }
-    : applyEffects(state.cash, state.salary, space, ratesFor(spec, state), state.salaryBase || 0);
+    : applyEffects(state.cash, state.salary, space, ratesFor(spec, state), state.salaryBase || 0, state.mode);
   return { applied, flavorState, flavor };
 }
 
@@ -783,7 +804,7 @@ export function applyRoll(spec, state, roll) {
       flavorState = settled.flavorState;
       expenses = charge(expenses, cashDelta);
     }
-    const cards = stepCards(spec, cardBalance, space);
+    const cards = stepCards(spec, cardBalance, space, state.mode);
     cardBalance = cards.balance;
     if (cards.paid) {
       cash -= cards.paid;
@@ -813,6 +834,8 @@ export function applyRoll(spec, state, roll) {
     promoted,
     startingPay,
     cardBalance,
+    lastChoice: null,
+    investOffer: null,
   };
   const spinEntry = baseEntry(
     { ...next, log: state.log },
@@ -822,6 +845,7 @@ export function applyRoll(spec, state, roll) {
       roll,
       fromAge: from.age,
       toAge: landed.age,
+      moved,
       discarded,
       paydayAges,
       paydayCash,
@@ -838,7 +862,11 @@ export function applyRoll(spec, state, roll) {
   next.log = state.log.concat(spinEntry);
 
   if (landed.kind === "choice") {
-    return { ...next, phase: "choice", pendingChoiceId: landed.id };
+    const stake = landed.choice?.invest;
+    const offer = Number.isFinite(stake)
+      ? { spaceId: landed.id, stake, p: drawInvestChance() }
+      : null;
+    return { ...next, phase: "choice", pendingChoiceId: landed.id, investOffer: offer };
   }
   if (landed.kind !== "payday") {
     next.log = next.log.concat(
@@ -916,7 +944,7 @@ export function resolveChoice(spec, state, accept) {
   let cardBalance = state.cardBalance || 0;
   const rates = ratesFor(spec, state);
   if (accept) {
-    const applied = applyEffects(cash, salary, space.choice.yes, rates, salaryBase);
+    const applied = applyEffects(cash, salary, space.choice.yes, rates, salaryBase, state.mode);
     cash = applied.cash;
     salary = applied.salary;
     salaryBase = applied.salaryBase;
@@ -924,16 +952,39 @@ export function resolveChoice(spec, state, accept) {
     cashDelta += applied.cashDelta;
     salaryDelta += applied.salaryDelta;
     if (applied.cashDelta < 0) spent -= applied.cashDelta;
-    if (space.choice.yes?.cardPay) cardBalance = Math.max(0, cardBalance - space.choice.yes.cardPay);
+    const yes = space.choice.yes || {};
+    const cardPay = state.mode === "life" && Number.isFinite(yes.lifeCardPay) ? yes.lifeCardPay : yes.cardPay;
+    if (cardPay) cardBalance = Math.max(0, cardBalance - cardPay);
+  }
+  let chance = null;
+  const offer = state.investOffer && state.investOffer.spaceId === space.id ? state.investOffer : null;
+  if (offer) {
+    chance = offer.p;
+    if (accept) {
+      const stake = offer.stake;
+      cash -= stake;
+      cashDelta -= stake;
+      spent += stake;
+      const success = investRandom() < offer.p;
+      fate = success ? "success" : "fail";
+      if (success) {
+        const doubled = stake * 2;
+        cash += doubled;
+        cashDelta += doubled;
+      }
+    }
   }
   const fateOn = space.choice.fate?.when || "yes";
-  const runFate = space.choice.fate && (fateOn === "always" || (fateOn === "yes" && accept) || (fateOn === "no" && !accept));
+  const runFate = !offer && space.choice.fate && (fateOn === "always" || (fateOn === "yes" && accept) || (fateOn === "no" && !accept));
   if (runFate) {
     const drawn = nextUnit(fateState);
     fateState = drawn.state;
     const success = drawn.unit < space.choice.fate.p;
     fate = success ? "success" : "fail";
-    const bonus = success ? space.choice.fate.successCash : space.choice.fate.failCash;
+    const failCash = state.mode === "life" && Number.isFinite(space.choice.fate.lifeFailCash)
+      ? space.choice.fate.lifeFailCash
+      : space.choice.fate.failCash;
+    const bonus = success ? space.choice.fate.successCash : failCash;
     cash += bonus || 0;
     cashDelta += bonus || 0;
     if ((bonus || 0) < 0) spent -= bonus || 0;
@@ -949,6 +1000,8 @@ export function resolveChoice(spec, state, accept) {
     fateState,
     phase: space.terminal ? "ended" : "play",
     pendingChoiceId: null,
+    investOffer: null,
+    lastChoice: { spaceId: space.id, accept, chance },
   };
   next = {
     ...next,
@@ -958,6 +1011,7 @@ export function resolveChoice(spec, state, accept) {
         choice: space.id,
         value: accept ? "yes" : "no",
         fate,
+        chance,
         cashDelta,
         salaryDelta,
       }),
