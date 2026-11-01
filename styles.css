@@ -102,6 +102,10 @@ body.mode-plain .lever-readout {
   display: none;
 }
 
+body.mode-span .stats .stat-year {
+  display: block;
+}
+
 body.mode-unset .dash,
 body.mode-unset .story,
 body.mode-unset .scroll,
@@ -597,6 +601,49 @@ h2 {
 .path-begin:disabled {
   opacity: 0.38;
   cursor: default;
+}
+
+@keyframes choice-flash {
+  0%, 49.9% {
+    background: #070707;
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  50%, 100% {
+    background: var(--ink);
+    color: var(--bg);
+    border-color: var(--ink);
+  }
+}
+
+.climb .space.pending,
+.choice.pending {
+  animation: choice-flash 1s steps(1, end) infinite;
+  opacity: 1;
+}
+
+.climb .space.pending.alt,
+.choice.pending.alt {
+  animation-delay: -0.5s;
+}
+
+.choice.pending {
+  padding: 8px 12px;
+  border-bottom: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .climb .space.pending,
+  .choice.pending {
+    animation: none;
+    background: #070707;
+    color: var(--ink);
+  }
+  .climb .space.pending.alt,
+  .choice.pending.alt {
+    background: var(--ink);
+    color: var(--bg);
+  }
 }
 
 .choice, .text-btn, .path-begin {
