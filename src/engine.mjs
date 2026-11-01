@@ -422,30 +422,22 @@ function applyEffects(cash, salary, effect, rates, salaryBase = 0) {
   return { cash, salary, salaryBase, cashDelta, salaryDelta, salarySet };
 }
 
-function takeLiving(spec, cash, expenses, salary, rates, mode, expenseLoad = 0) {
-  const extra = Math.round((salary || 0) * (expenseLoad || 0));
-  if (mode !== "lifespan-plus") {
-    if (!extra || mode !== "lifespan") {
-      return { cash, expenses: expenses || 0, gap: 0, borrow: 0, interest: 0 };
-    }
-    return {
-      cash: cash - extra,
-      expenses: (expenses || 0) + extra,
-      gap: 0,
-      borrow: 0,
-      interest: 0,
-    };
+function settleYear(spec, cash, expenses, salary, rates, mode, expenseLoad = 0) {
+  const idle = { cash, expenses: expenses || 0, pay: 0, bill: 0, gap: 0, borrow: 0, interest: 0 };
+  if (mode !== "lifespan" && mode !== "lifespan-plus") return idle;
+  const pay = salary || 0;
+  const bill = annualExpenses(pay, rates, spec) + Math.round(pay * (expenseLoad || 0));
+  let next = cash + pay - bill;
+  let spent = (expenses || 0) + bill;
+  let interest = 0;
+  let borrow = 0;
+  if (mode === "lifespan-plus") {
+    interest = savingsInterest(next, spec);
+    borrow = borrowingCharge(next, spec);
+    next = next + interest - borrow;
+    spent += borrow;
   }
-  const gap = livingGap(spec, salary, rates);
-  const borrow = borrowingCharge(cash, spec);
-  const interest = savingsInterest(cash, spec);
-  return {
-    cash: cash + gap + interest - borrow - extra,
-    expenses: (expenses || 0) + (gap < 0 ? -gap : 0) + borrow + extra,
-    gap,
-    borrow,
-    interest,
-  };
+  return { cash: next, expenses: spent, pay, bill, gap: 0, borrow, interest };
 }
 
 function charge(expenses, cashDelta) {
@@ -523,7 +515,7 @@ export function choosePath(spec, state, pathName) {
   const rates = ratesFor(spec, next);
   const salaryBase = settled.applied.salaryBase ?? next.salaryBase ?? 0;
   const startingPay = next.startingPay || settled.applied.salarySet || 0;
-  const lived = takeLiving(
+  const lived = settleYear(
     spec,
     settled.applied.cash,
     charge(next.expenses, settled.applied.cashDelta),
@@ -550,6 +542,8 @@ export function choosePath(spec, state, pathName) {
         cashDelta: settled.applied.cashDelta,
         salaryDelta: settled.applied.salaryDelta,
         livingGap: lived.gap,
+        yearPay: lived.pay,
+        yearBill: lived.bill,
         flavor: settled.flavor,
       }),
     ),
@@ -705,6 +699,8 @@ export function applyRoll(spec, state, roll) {
   const reviews = [];
   const paydayAges = [];
   let paydayCash = 0;
+  let yearPay = 0;
+  let yearBill = 0;
   const view = () => ({
     ...state,
     cash,
@@ -764,12 +760,12 @@ export function applyRoll(spec, state, roll) {
       flavorState = settled.flavorState;
       expenses = charge(expenses, cashDelta);
     }
-    if (!(landing && space.kind === "choice")) {
-      const year = takeLiving(spec, cash, expenses, salary, ratesFor(spec, view()), state.mode, expenseLoad);
-      cash = year.cash;
-      expenses = year.expenses;
-      living += year.gap;
-    }
+    const year = settleYear(spec, cash, expenses, salary, ratesFor(spec, view()), state.mode, expenseLoad);
+    cash = year.cash;
+    expenses = year.expenses;
+    living += year.gap;
+    yearPay += year.pay;
+    yearBill += year.bill;
   }
   const landed = spaces[i];
   let next = {
@@ -798,6 +794,8 @@ export function applyRoll(spec, state, roll) {
       discarded,
       paydayAges,
       paydayCash,
+      yearPay,
+      yearBill,
       reviews,
       livingGap: living,
       cash,
@@ -903,15 +901,13 @@ export function resolveChoice(spec, state, accept) {
       if ((bonus || 0) < 0) spent -= bonus || 0;
     }
   }
-  const lived = takeLiving(spec, cash, (state.expenses || 0) + spent, salary, rates, state.mode, state.expenseLoad || 0);
-  cash = lived.cash;
   let next = {
     ...state,
     cash,
     salary,
     salaryBase,
     startingPay,
-    expenses: lived.expenses,
+    expenses: (state.expenses || 0) + spent,
     fateState,
     phase: space.terminal ? "ended" : "play",
     pendingChoiceId: null,
