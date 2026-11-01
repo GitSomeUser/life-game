@@ -8,7 +8,7 @@
  * Death is on the spin stream, so answers do not move the wedge.
  * Life and Life$pan ignore the triangle, the wedge, and borrowing.
  * Life$pan and Life$pan+ turn former paydays into a review.
- * The climb is ages 18–68 only. There is no downslope.
+ * The climb is ages 18-68 only. There is no downslope.
  */
 
 const KINDS = new Set(["event", "payday", "stop", "choice"]);
@@ -45,7 +45,7 @@ export function track(spec, pathName) {
 export function validate(spec) {
   const errors = [];
   const { ageStart, ageEnd } = spec.meta;
-  if (ageStart !== 18 || ageEnd !== 68) errors.push("age range must be 18–68");
+  if (ageStart !== 18 || ageEnd !== 68) errors.push("age range must be 18-68");
   if (spec.meta.yearsPerSpace !== 1) errors.push("stage 1 uses 1 year per space");
   for (const name of ["study", "work"]) {
     const spaces = track(spec, name);
@@ -390,6 +390,7 @@ export function createGame(spec, seed, point, mode) {
     startingPay: 0,
     reviewState: (s ^ 0xa5a5f00d) >>> 0,
     expenses: 0,
+    cardBalance: 0,
     point: parsePoint(point),
     phase: "choose",
     pendingChoiceId: null,
@@ -438,6 +439,26 @@ function settleYear(spec, cash, expenses, salary, rates, mode, expenseLoad = 0) 
     spent += borrow;
   }
   return { cash: next, expenses: spent, pay, bill, gap: 0, borrow, interest };
+}
+
+export function freshSeed(now, nonce, previous = 0) {
+  const time = Number(now) >>> 0;
+  const n = Number(nonce) >>> 0;
+  let seed = (Math.imul(time ^ 0x9e3779b1, 0x85ebca6b) ^ Math.imul(n ^ 0x85ebca6b, 0xc2b2ae35)) >>> 0;
+  if (!seed) seed = 1;
+  const prev = Number(previous) >>> 0;
+  if (seed === prev) seed = (seed + 1 + (n & 0xffff)) >>> 0 || 1;
+  return seed;
+}
+
+function stepCards(spec, balance, space) {
+  const rate = spec.meta.cardRate || 0;
+  let next = balance || 0;
+  if (space.card === "open") next += space.cardStart || 0;
+  else if (next > 0) next = Math.round(next * (1 + rate));
+  if (space.card === "stack" && next > 0) next += space.cardAdd || 0;
+  if (space.card === "due") return { balance: 0, paid: next };
+  return { balance: next, paid: 0 };
 }
 
 function charge(expenses, cashDelta) {
@@ -668,7 +689,7 @@ export function applyReview(spec, state, unit) {
 
 export function applyRoll(spec, state, roll) {
   if (state.phase !== "play") throw new Error("Cannot spin right now");
-  if (!Number.isInteger(roll) || roll < 1 || roll > 10) throw new Error("Roll must be 1–10");
+  if (!Number.isInteger(roll) || roll < 1 || roll > 10) throw new Error("Roll must be 1-10");
   const spaces = track(spec, state.path);
   const from = spaces[state.index];
   let steps = roll;
@@ -701,6 +722,8 @@ export function applyRoll(spec, state, roll) {
   let paydayCash = 0;
   let yearPay = 0;
   let yearBill = 0;
+  let cardBalance = state.cardBalance || 0;
+  let cardPaid = 0;
   const view = () => ({
     ...state,
     cash,
@@ -760,6 +783,13 @@ export function applyRoll(spec, state, roll) {
       flavorState = settled.flavorState;
       expenses = charge(expenses, cashDelta);
     }
+    const cards = stepCards(spec, cardBalance, space);
+    cardBalance = cards.balance;
+    if (cards.paid) {
+      cash -= cards.paid;
+      expenses += cards.paid;
+      cardPaid += cards.paid;
+    }
     const year = settleYear(spec, cash, expenses, salary, ratesFor(spec, view()), state.mode, expenseLoad);
     cash = year.cash;
     expenses = year.expenses;
@@ -782,6 +812,7 @@ export function applyRoll(spec, state, roll) {
     reviewState,
     promoted,
     startingPay,
+    cardBalance,
   };
   const spinEntry = baseEntry(
     { ...next, log: state.log },
@@ -796,6 +827,8 @@ export function applyRoll(spec, state, roll) {
       paydayCash,
       yearPay,
       yearBill,
+      cardPaid,
+      cardBalance,
       reviews,
       livingGap: living,
       cash,
@@ -880,6 +913,7 @@ export function resolveChoice(spec, state, accept) {
   let cashDelta = 0;
   let salaryDelta = 0;
   let spent = 0;
+  let cardBalance = state.cardBalance || 0;
   const rates = ratesFor(spec, state);
   if (accept) {
     const applied = applyEffects(cash, salary, space.choice.yes, rates, salaryBase);
@@ -890,16 +924,19 @@ export function resolveChoice(spec, state, accept) {
     cashDelta += applied.cashDelta;
     salaryDelta += applied.salaryDelta;
     if (applied.cashDelta < 0) spent -= applied.cashDelta;
-    if (space.choice.fate) {
-      const drawn = nextUnit(fateState);
-      fateState = drawn.state;
-      const success = drawn.unit < space.choice.fate.p;
-      fate = success ? "success" : "fail";
-      const bonus = success ? space.choice.fate.successCash : space.choice.fate.failCash;
-      cash += bonus || 0;
-      cashDelta += bonus || 0;
-      if ((bonus || 0) < 0) spent -= bonus || 0;
-    }
+    if (space.choice.yes?.cardPay) cardBalance = Math.max(0, cardBalance - space.choice.yes.cardPay);
+  }
+  const fateOn = space.choice.fate?.when || "yes";
+  const runFate = space.choice.fate && (fateOn === "always" || (fateOn === "yes" && accept) || (fateOn === "no" && !accept));
+  if (runFate) {
+    const drawn = nextUnit(fateState);
+    fateState = drawn.state;
+    const success = drawn.unit < space.choice.fate.p;
+    fate = success ? "success" : "fail";
+    const bonus = success ? space.choice.fate.successCash : space.choice.fate.failCash;
+    cash += bonus || 0;
+    cashDelta += bonus || 0;
+    if ((bonus || 0) < 0) spent -= bonus || 0;
   }
   let next = {
     ...state,
@@ -907,6 +944,7 @@ export function resolveChoice(spec, state, accept) {
     salary,
     salaryBase,
     startingPay,
+    cardBalance,
     expenses: (state.expenses || 0) + spent,
     fateState,
     phase: space.terminal ? "ended" : "play",
