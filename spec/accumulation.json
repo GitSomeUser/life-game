@@ -697,7 +697,7 @@
           "id": "pay-63",
           "age": 63,
           "title": "Payday",
-          "detail": "Salary hits the account. One year of the track remains.",
+          "detail": "Salary hits the account.",
           "tone": "good",
           "kind": "payday",
           "adapts": "Payday near the classic early-retirement age. No early retirement choice in this version."
