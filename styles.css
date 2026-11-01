@@ -690,6 +690,11 @@ h2 {
   animation: none;
 }
 
+.choice.decision:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
 .choice.decision {
   display: inline-flex;
   align-items: center;
