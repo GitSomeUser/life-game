@@ -1026,7 +1026,7 @@ function takeTurn() {
 actBtn.addEventListener("click", takeTurn);
 
 copyBtn.addEventListener("click", async () => {
-  const text = [`game ${gameName() || "unnamed"}`, leverReadout.textContent, `seed ${state.seed}`, ...state.log.map(logLine)].join("\\n");
+  const text = [`game ${gameName() || "unnamed"}`, leverReadout.textContent, `seed ${state.seed}`, ...state.log.map(logLine)].join("\n");
   try {
     await navigator.clipboard.writeText(text);
     copyBtn.textContent = "Copied";
