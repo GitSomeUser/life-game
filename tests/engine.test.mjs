@@ -431,21 +431,26 @@ test("entirety pays 4 percent on positive savings and still borrows when negativ
 });
 
 test("review odds are the seven stated bands", () => {
-  const bands = spec.meta.review.bands;
-  assert.equal(bands.reduce((sum, band) => sum + band.count, 0), 100);
-  assert.equal(reviewFromUnit(spec, 0).id, "closer");
-  assert.equal(reviewFromUnit(spec, 0.099).id, "closer");
-  assert.equal(reviewFromUnit(spec, 0.1).id, "away");
-  assert.equal(reviewFromUnit(spec, 0.2).id, "temp-bonus");
-  assert.equal(reviewFromUnit(spec, 0.4).id, "temp-cut");
-  assert.equal(reviewFromUnit(spec, 0.6).id, "promo");
-  assert.equal(reviewFromUnit(spec, 0.8).id, "expenses");
-  assert.equal(reviewFromUnit(spec, 0.82).id, "stay");
-  assert.equal(reviewFromUnit(spec, 0.999).id, "stay");
-  assert.match(bands.map((band) => band.label).join(" "), /1 in 10/);
+  for (const mode of ["lifespan", "lifespan-plus"]) {
+    const bands = spec.meta.review[mode].bands;
+    assert.equal(bands.reduce((sum, band) => sum + band.count, 0), 100);
+    assert.equal(reviewFromUnit(spec, 0.2, mode).id, "temp-bonus");
+    assert.equal(reviewFromUnit(spec, 0.4, mode).id, "temp-cut");
+    assert.equal(reviewFromUnit(spec, 0.6, mode).id, "promo");
+    assert.equal(reviewFromUnit(spec, 0.8, mode).id, "expenses");
+    assert.equal(reviewFromUnit(spec, 0.82, mode).id, "stay");
+    assert.equal(reviewFromUnit(spec, 0.999, mode).id, "stay");
+  }
+  assert.equal(reviewFromUnit(spec, 0, "lifespan").id, "big-bonus");
+  assert.equal(reviewFromUnit(spec, 0.099, "lifespan").id, "big-bonus");
+  assert.equal(reviewFromUnit(spec, 0.1, "lifespan").id, "demo");
+  assert.equal(reviewFromUnit(spec, 0, "lifespan-plus").id, "closer");
+  assert.equal(reviewFromUnit(spec, 0.1, "lifespan-plus").id, "away");
+  assert.match(spec.meta.review.lifespan.bands[0].label, /temporary pay bonus and a permanent pay increase/);
+  assert.match(spec.meta.review["lifespan-plus"].bands[0].label, /closer to the goal/);
   assert.match(spec.meta.modes.life, /Squares are not years/);
-  assert.match(spec.meta.modes.lifespan, /review/);
-  assert.match(spec.meta.modes["lifespan-plus"], /triangle/);
+  assert.match(spec.meta.modes.lifespan, /Promo/);
+  assert.match(spec.meta.modes["lifespan-plus"], /do not change pay/);
   assert.equal(spec.meta.modes.entirety, undefined);
 });
 
@@ -465,11 +470,16 @@ test("a former payday is a review on Life$pan and a payday on Life", () => {
 test("review results change pay, cash, or expenses, and a demo stops at 80 percent", () => {
   const hired = choosePath(spec, createGame(spec, 4, undefined, "lifespan"), "work");
   const start = spec.meta.workSalary;
-  const closer = applyReview(spec, hired, 0.05);
-  assert.equal(closer.salary, Math.round(start * (1 + spec.meta.review.shift)));
-  assert.equal(closer.point.w, hired.point.w);
-  const away = applyReview(spec, hired, 0.15);
-  assert.equal(away.salary, Math.round(start * (1 - spec.meta.review.shift)));
+  const big = applyReview(spec, hired, 0.05);
+  assert.equal(big.band.id, "big-bonus");
+  assert.equal(big.salary, Math.round(start * (1 + spec.meta.review.permanentPromo)));
+  assert.equal(big.cashDelta, Math.round(start * spec.meta.review.tempPay));
+  assert.equal(big.point.w, hired.point.w);
+  const demo = applyReview(spec, hired, 0.15);
+  assert.equal(demo.band.id, "demo");
+  assert.equal(demo.salary, Math.round(start * (1 - spec.meta.review.permanentPromo)));
+  assert.equal(demo.cashDelta, -Math.round(start * spec.meta.review.expenseBump));
+  assert.equal(demo.expenseLoad, 0);
   const bonus = applyReview(spec, hired, 0.25);
   assert.equal(bonus.salary, start);
   assert.equal(bonus.cashDelta, Math.round(start * spec.meta.review.tempPay));
@@ -491,9 +501,15 @@ test("review results change pay, cash, or expenses, and a demo stops at 80 perce
   assert.equal(worn.held, true);
   const plus = choosePath(spec, createGame(spec, 4, { h: 1 / 3, w: 1 / 3, f: 1 / 3 }, "lifespan-plus"), "work");
   const nudged = applyReview(spec, plus, 0.05);
+  assert.equal(nudged.band.id, "closer");
   assert.ok(nudged.point.w > plus.point.w);
-  assert.ok(nudged.salary >= plus.salary);
-  assert.equal(nudged.payMod, 1);
+  assert.equal(nudged.salary, plus.salary);
+  assert.equal(nudged.cashDelta, 0);
+  const away = applyReview(spec, plus, 0.15);
+  assert.equal(away.band.id, "away");
+  assert.ok(away.point.w < plus.point.w);
+  assert.equal(away.salary, plus.salary);
+  assert.equal(away.cashDelta, 0);
 });
 
 test("tone mix is recorded for a later matching phase", () => {
