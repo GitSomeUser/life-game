@@ -8,6 +8,7 @@ import {
   attributeWeights,
   axis,
   choosePath,
+  freshSeed,
   createGame,
   currentSpace,
   deathProbability,
@@ -165,10 +166,10 @@ test("both paths reach 68 for several seeds and policies", () => {
 test("no-stakes years draw a flavor card and leave cash alone", () => {
   const locked = {
     "study-tuition": -124000,
-    "child": -12000,
-    twins: -22000,
-    partnership: -8000,
-    home: -42000,
+    child: -52000,
+    twins: -78000,
+    partnership: -28000,
+    home: -420000,
   };
   for (const [id, cash] of Object.entries(locked)) {
     const space = track(spec, "study").find((s) => s.id === id) || track(spec, "work").find((s) => s.id === id);
@@ -178,7 +179,7 @@ test("no-stakes years draw a flavor card and leave cash alone", () => {
   assert.equal(spec.paths.study.spaces[3].salarySet, 68000);
   assert.equal(spec.paths.work.spaces[0].salarySet, 48000);
   assert.equal(spec.paths.work.spaces[3].salaryDelta, 10000);
-  for (const id of ["study-nights", "quiet-37", "reunion", "quiet-50", "quiet-56", "festival", "quiet-61", "quiet-65", "farewell"]) {
+  for (const id of ["study-nights", "quiet-37", "reunion", "farewell"]) {
     const space = track(spec, "study").find((s) => s.id === id);
     assert.equal(space.flavor, true);
     assert.equal(space.cash, undefined);
@@ -196,25 +197,19 @@ test("no-stakes years draw a flavor card and leave cash alone", () => {
   assert.ok(card.id && card.caption && card.still);
   const again = applyRoll(spec, choosePath(spec, createGame(spec, 5), "study"), 1);
   assert.equal(again.log.at(-1).flavor.id, card.id);
-  const otherAnswers = (() => {
+  const walk = (accept) => {
     let s = choosePath(spec, createGame(spec, 11), "work");
     const ids = [];
     let guard = 0;
     while (s.phase !== "ended" && guard++ < 80) {
-      s = s.phase === "choice" ? resolveChoice(spec, s, true) : spin(spec, s);
+      s = s.phase === "choice" ? resolveChoice(spec, s, accept) : applyRoll(spec, s, 1);
       const flav = s.log.at(-1).flavor;
       if (flav) ids.push(flav.id);
     }
     return ids;
-  })();
-  let declined = choosePath(spec, createGame(spec, 11), "work");
-  const declinedIds = [];
-  let guard = 0;
-  while (declined.phase !== "ended" && guard++ < 80) {
-    declined = declined.phase === "choice" ? resolveChoice(spec, declined, false) : spin(spec, declined);
-    const flav = declined.log.at(-1).flavor;
-    if (flav) declinedIds.push(flav.id);
-  }
+  };
+  const otherAnswers = walk(true);
+  const declinedIds = walk(false);
   assert.deepEqual(otherAnswers, declinedIds);
   assert.ok(otherAnswers.length > 0);
 });
@@ -280,7 +275,7 @@ test("the center and the three corners match the triangle", () => {
   assert.equal(currentSpace(spec, plain).id, "partnership");
   assert.ok(plain.log.find((entry) => entry.t === "spin").reviews.length >= 1);
   const party = spec.paths.shared.spaces.find((s) => s.id === "partnership").cash;
-  assert.equal(party, -8000);
+  assert.equal(party, -28000);
 
   const age = 18;
   assert.equal(deathProbability(spec, age, 1), spec.mortality.annuity.q[0]);
@@ -541,6 +536,44 @@ test("life does not pay each space, and a year mode does", () => {
   assert.ok(spanSpin.yearPay > 0);
   assert.equal(spanSpin.yearBill, annualExpenses(spanMove.salary, rates, spec) + Math.round(spanMove.salary * (spanMove.expenseLoad || 0)));
   assert.ok(spanMove.cash !== lifeMove.cash);
+});
+
+test("a new clock seed does not repeat the first spins", () => {
+  const first = freshSeed(1_700_000_000_123, 1, 0);
+  const second = freshSeed(1_700_000_000_123, 2, first);
+  assert.notEqual(first, second);
+  const rolls = (seed) => {
+    let state = choosePath(spec, createGame(spec, seed, undefined, "life"), "work");
+    const seen = [];
+    let guard = 0;
+    while (seen.length < 4 && state.phase !== "ended" && guard++ < 20) {
+      if (state.phase === "choice") state = resolveChoice(spec, state, false);
+      else {
+        state = spin(spec, state);
+        const spun = [...state.log].reverse().find((entry) => entry.t === "spin");
+        if (spun) seen.push(spun.roll);
+      }
+    }
+    return seen;
+  };
+  assert.notDeepEqual(rolls(first), rolls(second));
+});
+
+test("a straight play can finish broke", () => {
+  const broke = (mode) => {
+    for (let seed = 1; seed <= 24; seed += 1) {
+      let state = choosePath(spec, createGame(spec, seed, undefined, mode), "work");
+      let guard = 0;
+      while (state.phase !== "ended" && guard++ < 100) {
+        state = state.phase === "choice" ? resolveChoice(spec, state, false) : spin(spec, state);
+      }
+      if (state.cash < 0) return seed;
+    }
+    return 0;
+  };
+  assert.ok(broke("life"), "life");
+  assert.ok(broke("lifespan"), "lifespan");
+  assert.ok(broke("lifespan-plus"), "lifespan-plus");
 });
 
 test("tone mix is recorded for a later matching phase", () => {
