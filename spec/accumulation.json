@@ -1,7 +1,7 @@
 {
   "meta": {
     "stage": 2,
-    "version": "0.9.2",
+    "version": "0.10.0",
     "ageStart": 18,
     "ageEnd": 68,
     "yearsPerSpace": 1,
@@ -25,7 +25,8 @@
       "A stop ends the move even if steps remain. Then you spin again.",
       "Ages 18 to 21 are a fork. Study and Work each have four spaces, then one shared track from 22 to 68. On Life those squares are not years. On Life$pan and Life$pan+ each square is one year.",
       "At 68 the working track ends. The climb has no downslope. Decumulation is not in this version. On Life$pan+, positive savings earn 4% a year and negative savings pay the 4% borrowing charge. Life and Life$pan do neither. Retirement spaces are not in this version.",
-      "One point in the triangle sets health, work, and frugality. Weights are inverse distance to the vertices, so an edge does not freeze the far one. It locks when the path starts. Reviews on Life$pan+ may nudge it later. The center is still one third."
+      "One point in the triangle sets health, work, and frugality. Weights are inverse distance to the vertices, so an edge does not freeze the far one. It locks when the path starts. Reviews on Life$pan+ may nudge it later. The center is still one third.",
+      "A new game takes a new seed from the start time unless you typed one. The seed is on the screen. Credit-card debt stacks on every space you move through, and the due square collects the balance even when you only pass it."
     ],
     "modes": {
       "life": "Traditional Game of Life. Squares are events. Squares are not years. Paydays stay paydays. A move does not pay or charge every space. No triangle.",
@@ -152,7 +153,8 @@
           }
         ]
       }
-    }
+    },
+    "cardRate": 0.15
   },
   "paths": {
     "study": {
@@ -250,11 +252,11 @@
         {
           "id": "room",
           "age": 22,
-          "title": "First lease",
-          "detail": "The application clears. Deposit and the first month are due before the key.",
+          "title": "The car",
+          "detail": "A used car, the loan, and the insurance. A classic bill, due up front.",
           "tone": "bad",
           "kind": "event",
-          "cash": -4000,
+          "cash": -24000,
           "adapts": "First household setup after the paths merge."
         },
         {
@@ -269,11 +271,11 @@
         {
           "id": "friend",
           "age": 24,
-          "title": "Scam text",
-          "detail": "A text from your bank. It was not your bank. The payment went through.",
+          "title": "The lawsuit",
+          "detail": "A fender, a lawyer, and a settlement. It comes out of cash.",
           "tone": "bad",
           "kind": "event",
-          "cash": -1500,
+          "cash": -42000,
           "adapts": "A current mishap. A scam text, settled in cash."
         },
         {
@@ -283,27 +285,27 @@
           "detail": "The tax app drops a refund you did not plan on.",
           "tone": "good",
           "kind": "event",
-          "cash": 3000,
+          "cash": 4000,
           "adapts": "Small windfall."
         },
         {
           "id": "partnership",
           "age": 26,
-          "title": "Partnership",
-          "detail": "You stop. Two people, one household. The party is small and still costs.",
+          "title": "Get married",
+          "detail": "You stop. The wedding is the classic one, and the bill is not optional.",
           "tone": "neutral",
           "kind": "stop",
-          "cash": -8000,
+          "cash": -28000,
           "adapts": "Get Married stop. No spouse gender, no pink or blue pegs."
         },
         {
           "id": "gifts",
           "age": 27,
-          "title": "Group transfers",
-          "detail": "People send what they can. The payment apps light up, and someone still mails a pan.",
+          "title": "Wedding gifts",
+          "detail": "A few transfers and one large check. It does not cover the wedding.",
           "tone": "good",
           "kind": "event",
-          "cash": 2000,
+          "cash": 8000,
           "adapts": "Honeymoon beat, recast as gifts to the household."
         },
         {
@@ -318,11 +320,11 @@
         {
           "id": "child",
           "age": 29,
-          "title": "A child arrives",
-          "detail": "A child joins the household. The spare room is no longer spare, and the bills start.",
+          "title": "A baby",
+          "detail": "You stop. A child joins the house. The crib, the care, and the bills start the day you get home.",
           "tone": "bad",
-          "kind": "event",
-          "cash": -12000,
+          "kind": "stop",
+          "cash": -52000,
           "adapts": "Baby space. No boy or girl."
         },
         {
@@ -347,21 +349,22 @@
         {
           "id": "repair",
           "age": 31,
-          "title": "Stolen card",
-          "detail": "The card number is out. Charges land before you freeze it.",
+          "title": "Credit cards",
+          "detail": "The cards arrive and the spending starts. The balance stacks on every space after this one until it comes due.",
           "tone": "bad",
           "kind": "event",
-          "cash": -2200,
-          "adapts": "Lost or stolen card. Charges before the freeze. Separate from the lost phone."
+          "adapts": "Lost or stolen card. Charges before the freeze. Separate from the lost phone.",
+          "card": "open",
+          "cardStart": 15000
         },
         {
           "id": "bonus",
           "age": 32,
-          "title": "Bonus deposit",
-          "detail": "A little extra hits the account at the end of the year.",
+          "title": "A bonus",
+          "detail": "A real bonus hits. It is not a second salary.",
           "tone": "good",
           "kind": "event",
-          "cash": 5000,
+          "cash": 12000,
           "adapts": "Bonus windfall."
         },
         {
@@ -376,11 +379,11 @@
         {
           "id": "home",
           "age": 34,
-          "title": "A home",
-          "detail": "You stop. This is the down payment, ten percent, not the whole price.",
+          "title": "The house",
+          "detail": "You stop. The down payment is huge, and it is due before the key. This is the classic house.",
           "tone": "bad",
           "kind": "stop",
-          "cash": -42000,
+          "cash": -420000,
           "adapts": "Buy a House stop. A first-time down payment, not the full sale price and not a deed deck."
         },
         {
@@ -396,11 +399,11 @@
         {
           "id": "twins",
           "age": 36,
-          "title": "Twins arrive",
-          "detail": "Two children join the household at once.",
+          "title": "Twins",
+          "detail": "Two more children arrive together. The costs land in one pile.",
           "tone": "bad",
           "kind": "event",
-          "cash": -22000,
+          "cash": -78000,
           "adapts": "Twins space. No sexes assigned."
         },
         {
@@ -425,11 +428,11 @@
         {
           "id": "taxes",
           "age": 39,
-          "title": "Stolen identity",
-          "detail": "Someone opens accounts in your name. The money is gone before the bank sorts it out.",
+          "title": "Back taxes",
+          "detail": "The letter is not a suggestion. Penalties are already on it.",
           "tone": "bad",
           "kind": "event",
-          "cash": -8000,
+          "cash": -36000,
           "adapts": "Serious mishap. Stolen online identity. An $8,000 hit."
         },
         {
@@ -487,38 +490,38 @@
         {
           "id": "painting",
           "age": 44,
-          "title": "Sold online",
-          "detail": "An old setup finds a buyer. The payout clears.",
+          "title": "An inheritance",
+          "detail": "Money from someone who kept their word. It helps. It is not the house.",
           "tone": "good",
           "kind": "event",
-          "cash": 5000,
+          "cash": 35000,
           "adapts": "Marketplace sale, in place of selling a painting."
         },
         {
           "id": "clinic",
           "age": 45,
-          "title": "Subscription trap",
-          "detail": "The free trials renewed. So did the annual plan you forgot.",
+          "title": "The specialist",
+          "detail": "The referral, the scans, and the part insurance will not touch.",
           "tone": "bad",
           "kind": "event",
-          "cash": -2800,
+          "cash": -32000,
           "adapts": "A stack of subscriptions, in place of a small clinic bill. The later medical year still carries the health cost."
         },
         {
           "id": "move",
           "age": 46,
-          "title": "Another city",
-          "detail": "The work would pay more somewhere else. Moving is not free.",
-          "tone": "neutral",
+          "title": "Pay the cards",
+          "detail": "You can pay a chunk of the stacked balance now, or let it keep growing.",
+          "tone": "bad",
           "kind": "choice",
           "adapts": "Optional life change, in the spirit of a blue space.",
           "choice": {
-            "prompt": "Spend $8,000 to move for a $6,000 raise?",
-            "yesLabel": "Move",
-            "noLabel": "Stay",
+            "prompt": "Pay $70,000 against the card balance now? Otherwise it keeps stacking.",
+            "yesLabel": "Pay it down",
+            "noLabel": "Let it stack",
             "yes": {
-              "cash": -8000,
-              "salaryDelta": 6000
+              "cash": -70000,
+              "cardPay": 70000
             },
             "no": {}
           }
@@ -526,11 +529,11 @@
         {
           "id": "wallet",
           "age": 47,
-          "title": "Lost phone",
-          "detail": "The phone is gone. Replacing it hits the account. The card is a different year.",
+          "title": "The deductible",
+          "detail": "A smaller medical bill, before the hospital. The deductible is yours.",
           "tone": "bad",
           "kind": "event",
-          "cash": -1200,
+          "cash": -18000,
           "adapts": "Lost phone. The device, separate from the stolen card."
         },
         {
@@ -545,22 +548,22 @@
         {
           "id": "lessons",
           "age": 49,
-          "title": "Activity fees",
-          "detail": "The club, the app, the season. The household pays it.",
+          "title": "Kid's tuition",
+          "detail": "You stop. The child's school bill is yours.",
           "tone": "bad",
-          "kind": "event",
-          "cash": -4500,
+          "kind": "stop",
+          "cash": -110000,
           "adapts": "Child-related cost without boy/girl framing."
         },
         {
           "id": "quiet-50",
           "age": 50,
-          "title": "A year",
-          "detail": "No bill this year. The card stays closed until you land.",
-          "tone": "neutral",
+          "title": "The roof",
+          "detail": "The roof goes. Insurance argues. You pay.",
+          "tone": "bad",
           "kind": "event",
           "adapts": "Was a quiet year. A flavor card, no cash.",
-          "flavor": true
+          "cash": -54000
         },
         {
           "id": "cola",
@@ -607,12 +610,12 @@
         {
           "id": "storm",
           "age": 54,
-          "title": "Pay-later bill",
-          "detail": "The buy-now-pay-later plans come due in the same month.",
+          "title": "Cards come due",
+          "detail": "You stop. The stacked balance is due in full. Passing through still collects it.",
           "tone": "bad",
-          "kind": "event",
-          "cash": -4000,
-          "adapts": "Buy now, pay later. A household-scale bill, in place of storm damage."
+          "kind": "stop",
+          "adapts": "Buy now, pay later. A household-scale bill, in place of storm damage.",
+          "card": "due"
         },
         {
           "id": "recognition",
@@ -627,21 +630,35 @@
         {
           "id": "quiet-56",
           "age": 56,
-          "title": "A year",
-          "detail": "No bill this year. The card stays closed until you land.",
-          "tone": "neutral",
-          "kind": "event",
+          "title": "The operation",
+          "detail": "Pay for the operation now, or wait and risk the emergency room.",
+          "tone": "bad",
+          "kind": "choice",
           "adapts": "Breathing room. A flavor card, no cash.",
-          "flavor": true
+          "choice": {
+            "prompt": "Pay $120,000 for the operation now? Wait, and a 1-in-2 emergency costs $210,000.",
+            "yesLabel": "Pay now",
+            "noLabel": "Wait",
+            "yes": {
+              "cash": -120000
+            },
+            "no": {},
+            "fate": {
+              "when": "no",
+              "p": 0.5,
+              "successCash": 0,
+              "failCash": -210000
+            }
+          }
         },
         {
           "id": "gift",
           "age": 57,
           "title": "Family transfer",
-          "detail": "Money from someone who kept their word. No name on it.",
+          "detail": "Another transfer arrives. Useful, and not enough to clear a stacked card.",
           "tone": "good",
           "kind": "event",
-          "cash": 4000,
+          "cash": 22000,
           "adapts": "Inheritance windfall, gender-neutral."
         },
         {
@@ -657,40 +674,40 @@
           "id": "parent",
           "age": 59,
           "title": "Support a parent",
-          "detail": "A parent needs a year of help. You send it.",
+          "detail": "A parent needs a year of help. You send it, and it is not small.",
           "tone": "bad",
           "kind": "event",
-          "cash": -5000,
+          "cash": -28000,
           "adapts": "Family support. No mother/father assignment."
         },
         {
           "id": "festival",
           "age": 60,
-          "title": "A year",
-          "detail": "No bill this year. The card stays closed until you land.",
-          "tone": "neutral",
+          "title": "The vacation",
+          "detail": "The trip goes on the cards in spirit, and the cash still leaves.",
+          "tone": "bad",
           "kind": "event",
           "adapts": "Was the group tab with a small cost. The cost is zero. A flavor card.",
-          "flavor": true
+          "cash": -22000
         },
         {
           "id": "quiet-61",
           "age": 61,
-          "title": "A year",
-          "detail": "No bill this year. The card stays closed until you land.",
-          "tone": "neutral",
+          "title": "Laid off",
+          "detail": "The job ends. The gap between paychecks is on you.",
+          "tone": "bad",
           "kind": "event",
           "adapts": "Breathing room. A flavor card, no cash.",
-          "flavor": true
+          "cash": -40000
         },
         {
           "id": "contract",
           "age": 62,
-          "title": "Gig paid",
-          "detail": "The invoice clears. The payout hits.",
+          "title": "A windfall",
+          "detail": "One invoice clears. A classic lucky square, not a rescue.",
           "tone": "good",
           "kind": "event",
-          "cash": 6000,
+          "cash": 18000,
           "adapts": "Late windfall."
         },
         {
@@ -705,22 +722,22 @@
         {
           "id": "medical",
           "age": 64,
-          "title": "A medical year",
-          "detail": "The portal bill, the deductible, and you are still on the track.",
+          "title": "The hospital",
+          "detail": "You stop. The procedure is the classic one, and the portal bill is dire.",
           "tone": "bad",
-          "kind": "event",
-          "cash": -6000,
+          "kind": "stop",
+          "cash": -160000,
           "adapts": "Health cost. Not a death sliver."
         },
         {
           "id": "quiet-65",
           "age": 65,
-          "title": "A year",
-          "detail": "No bill this year. The card stays closed until you land.",
-          "tone": "neutral",
+          "title": "The second procedure",
+          "detail": "Another medical year. Smaller than the hospital, and still dire.",
+          "tone": "bad",
           "kind": "event",
           "adapts": "Breathing room. A flavor card, no cash.",
-          "flavor": true
+          "cash": -64000
         },
         {
           "id": "farewell",
