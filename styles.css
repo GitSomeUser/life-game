@@ -67,13 +67,23 @@ body { overflow: hidden; }
 .modes button span { font: 500 32px/0.9 var(--serif); letter-spacing: -0.03em; }
 
 .modes button[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--bg);
+  background: transparent;
+  color: var(--ink);
+}
+
+.modes button[aria-pressed="true"] span {
+  font-weight: 700;
+  opacity: 1;
+  animation: none;
 }
 
 .modes button:disabled { cursor: default; }
 
-.modes button:disabled:not([aria-pressed="true"]) { opacity: 0.4; }
+body:not(.mode-unset) .modes button[aria-pressed="false"] span {
+  font-weight: 400;
+  opacity: 0.38;
+  animation: none;
+}
 
 #mode-note {
   min-height: 1.2em;
@@ -129,7 +139,13 @@ body.mode-unset .modes button {
 
 body.mode-unset .modes button span {
   font-size: clamp(52px, 7vw, 92px);
+  animation: choice-vibrate 1.6s steps(4, end) infinite;
 }
+
+body.mode-unset .modes button:nth-child(2) span { animation-delay: -0.4s; }
+body.mode-unset .modes button:nth-child(3) span { animation-delay: -0.8s; }
+
+body:not(.mode-unset) #resume-open { display: none; }
 
 body.mode-unset .brand {
   text-align: center;
@@ -155,15 +171,7 @@ body.mode-unset .switches { justify-content: center; }
 
 body.mode-unset .open-name { align-items: center; }
 
-.seed-live {
-  margin: 8px 0 0;
-  font-family: var(--mono);
-  font-size: 13px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-body.mode-unset .seed-live { text-align: center; }
+body.mode-unset #resume-open { margin-top: 12px; font-size: 14px; }
 
 .open-name label {
   font-size: 11px;
@@ -469,7 +477,7 @@ body.mode-unset .seed-live { text-align: center; }
 
 #setup[hidden] { display: none; }
 
-.eyebrow, .dek, .kicker, .path-name, .fine, .stats dt, .seed-row label {
+.eyebrow, .dek, .kicker, .path-name, .fine, .stats dt {
   letter-spacing: 0.22em;
   text-transform: uppercase;
 }
@@ -613,28 +621,49 @@ h2 {
   cursor: default;
 }
 
-@keyframes choice-flash {
-  0%, 49.9% {
-    background: #070707;
-    color: var(--ink);
-    border-color: var(--line);
+@keyframes choice-vibrate {
+  0% {
+    font-weight: 700;
+    font-family: "Iowan Old Style", Palatino, Georgia, serif;
+    opacity: 1;
   }
-  50%, 100% {
-    background: var(--ink);
-    color: var(--bg);
-    border-color: var(--ink);
+  25% {
+    font-weight: 400;
+    font-family: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
+    opacity: 0.4;
+  }
+  50% {
+    font-weight: 700;
+    font-family: Georgia, "Times New Roman", serif;
+    opacity: 1;
+  }
+  75% {
+    font-weight: 400;
+    font-family: Palatino, "Book Antiqua", serif;
+    opacity: 0.4;
+  }
+  100% {
+    font-weight: 700;
+    font-family: "Iowan Old Style", Palatino, Georgia, serif;
+    opacity: 1;
   }
 }
 
 .climb .space.pending,
 .choice.pending {
-  animation: choice-flash 1s steps(1, end) infinite;
-  opacity: 1;
+  animation: choice-vibrate 1.6s steps(4, end) infinite;
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.climb .space.pending {
+  background: rgba(7, 7, 7, 0.82);
 }
 
 .climb .space.pending.alt,
 .choice.pending.alt {
-  animation-delay: -0.5s;
+  animation-delay: -0.4s;
 }
 
 .choice.pending {
@@ -643,16 +672,18 @@ h2 {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  body.mode-unset .modes button span,
   .climb .space.pending,
   .choice.pending {
     animation: none;
-    background: #070707;
+    font-weight: 700;
+    opacity: 1;
+    font-family: "Iowan Old Style", Palatino, Georgia, serif;
+    background: transparent;
     color: var(--ink);
   }
-  .climb .space.pending.alt,
-  .choice.pending.alt {
-    background: var(--ink);
-    color: var(--bg);
+  .climb .space.pending {
+    background: rgba(7, 7, 7, 0.82);
   }
 }
 
@@ -914,21 +945,6 @@ h2 {
   gap: 10px 14px;
 }
 
-.seed-row label {
-  font-size: 10px;
-  color: var(--muted);
-}
-
-#seed {
-  width: 9rem;
-  border: 0;
-  border-bottom: 1px solid var(--line-strong);
-  background: transparent;
-  color: var(--ink);
-  font: 16px/1.4 var(--mono);
-  padding: 4px 0;
-}
-
 #roll-readout {
   flex-basis: 100%;
   margin: 0;
@@ -1011,6 +1027,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, .space:focus-visible
 .climb .space.now {
   background: var(--ink);
   color: var(--bg);
+  font-weight: 700;
+  animation: none;
 }
 
 body:not(.mode-unset) .story {
