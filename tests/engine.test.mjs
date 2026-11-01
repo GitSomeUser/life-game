@@ -20,6 +20,8 @@ import {
   resolveChoice,
   reviewFromUnit,
   savingsInterest,
+  setInvestRandom,
+  drawInvestChance,
   spin,
   toneCounts,
   track,
@@ -72,7 +74,7 @@ test("work collects the early payday when passing it, then can raise only on a l
 
 test("a stop cuts the move and still pays salaries passed on the way", () => {
   const pay = spec.meta.workSalary;
-  const party = spec.paths.shared.spaces.find((s) => s.id === "partnership").cash;
+  const party = spec.paths.shared.spaces.find((s) => s.id === "partnership").lifeCash;
   let state = choosePath(spec, createGame(spec, 1, undefined, "life"), "work");
   state = applyRoll(spec, state, 10);
   assert.equal(currentSpace(spec, state).id, "partnership");
@@ -85,6 +87,7 @@ test("a stop cuts the move and still pays salaries passed on the way", () => {
 });
 
 test("landing on a choice waits, and the same seed replays spins and fate", () => {
+  setInvestRandom(() => 0.2);
   const play = (accept) => {
     let state = choosePath(spec, createGame(spec, 42), "study");
     const rolls = [];
@@ -109,6 +112,7 @@ test("landing on a choice waits, and the same seed replays spins and fate", () =
   const again = play(true);
   assert.equal(again.state.cash, yes.state.cash);
   assert.deepEqual(again.state.log, yes.state.log);
+  setInvestRandom(Math.random);
 });
 
 test("passing a payday then landing on a cost pays salary once and the cost once", () => {
@@ -118,30 +122,32 @@ test("passing a payday then landing on a cost pays salary once and the cost once
   state = applyRoll(spec, state, 3);
   assert.equal(currentSpace(spec, state).id, "child");
   const pay = spec.meta.workSalary;
-  const party = spec.paths.shared.spaces.find((s) => s.id === "partnership").cash;
-  const child = spec.paths.shared.spaces.find((s) => s.id === "child").cash;
+  const party = spec.paths.shared.spaces.find((s) => s.id === "partnership").lifeCash;
+  const child = spec.paths.shared.spaces.find((s) => s.id === "child").lifeCash;
   const lastSpin = [...state.log].reverse().find((e) => e.t === "spin");
   assert.deepEqual(lastSpin.paydayAges, [28]);
   assert.equal(lastSpin.paydayCash, pay);
   assert.equal(state.cash, spec.meta.startingCash + pay + pay + party + pay + child);
 });
 
-test("risky yes outcomes stay on the fate stream", () => {
+test("the operation stays on the fate stream, and an investment does not", () => {
   let state = choosePath(spec, createGame(spec, 99), "work");
   const reach = (id) => {
     let guard = 0;
-    while (currentSpace(spec, state).id !== id && guard++ < 40) {
+    while (currentSpace(spec, state).id !== id && guard++ < 80) {
       if (state.phase === "choice") state = resolveChoice(spec, state, false);
       else state = applyRoll(spec, state, 1);
     }
   };
-  reach("market");
+  reach("quiet-56");
+  assert.equal(currentSpace(spec, state).id, "quiet-56");
   assert.equal(state.phase, "choice");
-  const after = resolveChoice(spec, state, true);
+  const after = resolveChoice(spec, state, false);
   assert.ok(after.log.at(-1).fate === "success" || after.log.at(-1).fate === "fail");
-  const declined = resolveChoice(spec, state, false);
-  assert.equal(declined.log.at(-1).fate, null);
-  assert.equal(declined.fateState, state.fateState);
+  const paid = resolveChoice(spec, state, true);
+  assert.equal(paid.log.at(-1).fate, null);
+  assert.equal(paid.fateState, state.fateState);
+  assert.equal(paid.cash, state.cash - 120000);
 });
 
 test("both paths reach 68 for several seeds and policies", () => {
@@ -356,20 +362,25 @@ test("life and lifespan ignore the triangle and the wedge", () => {
   const life = choosePath(spec, createGame(spec, 7, point, "life"), "study");
   assert.equal(life.mode, "life");
   assert.equal(isEntirety(life), false);
-  assert.equal(life.cash, spec.meta.startingCash - 124000);
+  const lifeTuition = spec.paths.study.spaces[0].lifeCash;
+  const yearTuition = spec.paths.study.spaces[0].cash;
+  assert.equal(life.cash, spec.meta.startingCash + lifeTuition);
+  assert.equal(yearTuition, -124000);
+  assert.notEqual(lifeTuition, yearTuition);
   const placed = applyRoll(spec, life, 10);
   assert.equal(placed.salary, spec.meta.studySalary);
   assert.equal(placed.death, null);
 
   const lifespan = choosePath(spec, createGame(spec, 7, point, "lifespan"), "study");
-  assert.equal(lifespan.cash, life.cash);
+  assert.equal(lifespan.cash, spec.meta.startingCash + yearTuition);
+  assert.notEqual(lifespan.cash, life.cash);
   assert.equal(lifespan.salary, life.salary);
 
   const entirety = choosePath(spec, createGame(spec, 7, point, "lifespan-plus"), "study");
   assert.equal(isEntirety(entirety), true);
   assert.equal(entirety.mode, "lifespan-plus");
-  assert.notEqual(entirety.cash, life.cash);
-  assert.equal(entirety.cash, life.cash - Math.round(-life.cash * spec.meta.triangle.borrowingRate));
+  const owed = spec.meta.startingCash + yearTuition;
+  assert.equal(entirety.cash, owed - Math.round(-owed * spec.meta.triangle.borrowingRate));
 
   const hired = choosePath(spec, createGame(spec, 3, point, "life"), "work");
   assert.equal(hired.salary, spec.meta.workSalary);
@@ -557,6 +568,72 @@ test("a new clock seed does not repeat the first spins", () => {
     return seen;
   };
   assert.notDeepEqual(rolls(first), rolls(second));
+});
+
+test("an investment chance steps from 10% through 80%, and a win doubles the stake", () => {
+  const units = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 0.999];
+  const expected = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.8];
+  units.forEach((unit, i) => {
+    assert.equal(drawInvestChance(() => unit), expected[i]);
+  });
+  assert.equal(drawInvestChance(() => 0.124), 0.1);
+  assert.notEqual(drawInvestChance(() => 0.999), 0.9);
+  assert.notEqual(drawInvestChance(() => 0.999), 1);
+  const draws = [];
+  setInvestRandom(() => {
+    const next = [0.5, 0.49][draws.length];
+    draws.push(next);
+    return next;
+  });
+  let state = choosePath(spec, createGame(spec, 99, undefined, "life"), "work");
+  let guard = 0;
+  while (currentSpace(spec, state).id !== "market" && guard++ < 80) {
+    if (state.phase === "choice") state = resolveChoice(spec, state, false);
+    else state = applyRoll(spec, state, 1);
+  }
+  assert.equal(state.phase, "choice");
+  assert.equal(state.investOffer.p, 0.5);
+  assert.equal(state.investOffer.stake, 10000);
+  assert.equal(state.fateState, choosePath(spec, createGame(spec, 99, undefined, "life"), "work").fateState);
+  const before = state.cash;
+  const won = resolveChoice(spec, state, true);
+  assert.equal(won.log.at(-1).fate, "success");
+  assert.equal(won.log.at(-1).chance, 0.5);
+  assert.equal(won.cash, before + 10000);
+  assert.equal(won.lastChoice.accept, true);
+  assert.equal(won.lastChoice.chance, 0.5);
+  assert.equal(won.investOffer, null);
+  const skipped = resolveChoice(spec, state, false);
+  assert.equal(skipped.cash, before);
+  assert.equal(skipped.log.at(-1).fate, null);
+  assert.equal(skipped.fateState, state.fateState);
+  setInvestRandom(Math.random);
+});
+
+test("life can finish with savings and can finish broke", () => {
+  setInvestRandom(() => 0.2);
+  const finish = (path, seed, accept) => {
+    let state = choosePath(spec, createGame(spec, seed, undefined, "life"), path);
+    let guard = 0;
+    while (state.phase !== "ended" && guard++ < 120) {
+      state = state.phase === "choice" ? resolveChoice(spec, state, accept) : spin(spec, state);
+    }
+    return state.cash;
+  };
+  let rich = false;
+  let broke = false;
+  for (let seed = 1; seed <= 40 && !(rich && broke); seed += 1) {
+    for (const path of ["study", "work"]) {
+      for (const accept of [true, false]) {
+        const cash = finish(path, seed, accept);
+        if (cash >= 0) rich = true;
+        if (cash < 0) broke = true;
+      }
+    }
+  }
+  assert.equal(rich, true);
+  assert.equal(broke, true);
+  setInvestRandom(Math.random);
 });
 
 test("a straight play can finish broke", () => {
