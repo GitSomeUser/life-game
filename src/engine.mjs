@@ -1,27 +1,37 @@
 /**
  * Accumulation simulation. Reads spec/accumulation.json.
- * Deterministic: spins, risky choices, and flavor cards use separate streams.
+ * Deterministic: spins, reviews, risky choices, and flavor cards use separate streams.
  * The triangle sets income, the spending rate, and the death blend.
  * Weights are inverse distance to the vertices.
- * Entirety pays 4% a year on positive savings and charges 4% when savings are negative.
+ * Life$pan+ pays 4% a year on positive savings and charges 4% when savings are negative.
  * Decumulation is not in this version.
  * Death is on the spin stream, so answers do not move the wedge.
  * Life and Life$pan ignore the triangle, the wedge, and borrowing.
- * Entirety keeps the Stage 2 board. Retirement spaces are not in this version.
+ * Life$pan and Life$pan+ turn former paydays into a review.
  * The climb is ages 18–68 only. There is no downslope.
  */
 
 const KINDS = new Set(["event", "payday", "stop", "choice"]);
 const TONES = new Set(["good", "bad", "neutral"]);
-const GAME_MODES = ["life", "lifespan", "entirety"];
+const GAME_MODES = ["life", "lifespan", "lifespan-plus"];
+const REVIEW_IDS = ["closer", "away", "temp-bonus", "temp-cut", "promo", "expenses", "stay"];
+
+export function isSpanPlus(state) {
+  return state?.mode === "lifespan-plus";
+}
+
+export function isYearMode(state) {
+  return state?.mode === "lifespan" || state?.mode === "lifespan-plus";
+}
 
 export function isEntirety(state) {
-  return state?.mode === "entirety";
+  return isSpanPlus(state);
 }
 
 function normalizeMode(mode) {
-  if (mode === undefined) return "entirety";
-  if (mode === null) return null;
+  if (mode === undefined) return "lifespan-plus";
+  if (mode === null || mode === "") return null;
+  if (mode === "entirety") return "lifespan-plus";
   if (!GAME_MODES.includes(mode)) throw new Error(`Unknown mode: ${mode}`);
   return mode;
 }
@@ -116,6 +126,28 @@ export function validate(spec) {
     }
     if (mortality.perSquare != null && typeof mortality.perSquare !== "object") {
       errors.push("perSquare slot must be null until a later pass");
+    }
+  }
+  const review = spec.meta.review;
+  if (!review) errors.push("missing review");
+  else {
+    const sum = (review.bands || []).reduce((total, band) => total + band.count, 0);
+    if (sum !== 100) errors.push(`review bands sum to ${sum}, expected 100`);
+    const seen = new Set();
+    for (const band of review.bands || []) {
+      if (!REVIEW_IDS.includes(band.id)) errors.push(`unknown review ${band.id}`);
+      if (seen.has(band.id)) errors.push(`duplicate review ${band.id}`);
+      seen.add(band.id);
+      if (band.per !== 100) errors.push(`${band.id} odds must be out of 100`);
+      if (!band.label) errors.push(`${band.id} missing odds label`);
+    }
+    for (const id of REVIEW_IDS) {
+      if (!seen.has(id)) errors.push(`missing review ${id}`);
+    }
+    for (const key of ["shift", "tempPay", "permanentPromo", "expenseBump", "promoFloor"]) {
+      if (!Number.isFinite(review[key]) || review[key] <= 0 || review[key] > 1) {
+        errors.push(`review ${key} must be a fraction above 0`);
+      }
     }
   }
   if (errors.length) throw new Error(errors.join("\n"));
@@ -291,9 +323,11 @@ export function portraitStats(spec, state) {
   const centerRates = triangleRates(spec, centerPoint());
   const centerBill = annualExpenses(centerIncome, centerRates, spec);
   const spending = annual;
-  const borrowing = isEntirety(state) ? borrowingCharge(state.cash, spec) : 0;
-  const interest = isEntirety(state) ? savingsInterest(state.cash, spec) : 0;
-  const bill = spending + borrowing;
+  const borrowing = isSpanPlus(state) ? borrowingCharge(state.cash, spec) : 0;
+  const interest = isSpanPlus(state) ? savingsInterest(state.cash, spec) : 0;
+  const extra = Math.round(income * (state.expenseLoad || 0));
+  const spendingWithLoad = spending + extra;
+  const bill = spendingWithLoad + borrowing;
   const death = deathProbability(spec, age, rates.axis.h);
   const deathCenter = deathProbability(spec, age, 0);
   const qi = age - spec.meta.ageStart;
@@ -302,7 +336,7 @@ export function portraitStats(spec, state) {
     income,
     monthly,
     annual: bill,
-    spending,
+    spending: spendingWithLoad,
     borrowing,
     interest,
     death,
@@ -342,6 +376,12 @@ export function createGame(spec, seed, point, mode) {
     index: -1,
     cash: spec.meta.startingCash,
     salary: 0,
+    salaryBase: 0,
+    payMod: 1,
+    expenseLoad: 0,
+    promoted: false,
+    startingPay: 0,
+    reviewState: (s ^ 0xa5a5f00d) >>> 0,
     expenses: 0,
     point: parsePoint(point),
     phase: "choose",
@@ -351,32 +391,50 @@ export function createGame(spec, seed, point, mode) {
   };
 }
 
-function applyEffects(cash, salary, effect, rates) {
-  if (!effect) return { cash, salary, cashDelta: 0, salaryDelta: 0 };
+function applyEffects(cash, salary, effect, rates, salaryBase = 0) {
+  if (!effect) return { cash, salary, salaryBase, cashDelta: 0, salaryDelta: 0, salarySet: null };
   const income = rates?.income ?? 1;
   let cashDelta = 0;
   let salaryDelta = 0;
-  if (effect.salarySet != null) salary = scaleIncome(effect.salarySet, income);
+  let salarySet = null;
+  if (effect.salarySet != null) {
+    salary = scaleIncome(effect.salarySet, income);
+    salaryBase = effect.salarySet;
+    salarySet = effect.salarySet;
+  }
   if (effect.salaryDelta) {
     const delta = scaleIncome(effect.salaryDelta, income);
     salary += delta;
     salaryDelta = delta;
+    salaryBase += effect.salaryDelta;
   }
   if (effect.cash) {
     cash += effect.cash;
     cashDelta = effect.cash;
   }
-  return { cash, salary, cashDelta, salaryDelta };
+  return { cash, salary, salaryBase, cashDelta, salaryDelta, salarySet };
 }
 
-function takeLiving(spec, cash, expenses, salary, rates, entirety) {
-  if (!entirety) return { cash, expenses: expenses || 0, gap: 0, borrow: 0, interest: 0 };
+function takeLiving(spec, cash, expenses, salary, rates, mode, expenseLoad = 0) {
+  const extra = Math.round((salary || 0) * (expenseLoad || 0));
+  if (mode !== "lifespan-plus") {
+    if (!extra || mode !== "lifespan") {
+      return { cash, expenses: expenses || 0, gap: 0, borrow: 0, interest: 0 };
+    }
+    return {
+      cash: cash - extra,
+      expenses: (expenses || 0) + extra,
+      gap: 0,
+      borrow: 0,
+      interest: 0,
+    };
+  }
   const gap = livingGap(spec, salary, rates);
   const borrow = borrowingCharge(cash, spec);
   const interest = savingsInterest(cash, spec);
   return {
-    cash: cash + gap + interest - borrow,
-    expenses: (expenses || 0) + (gap < 0 ? -gap : 0) + borrow,
+    cash: cash + gap + interest - borrow - extra,
+    expenses: (expenses || 0) + (gap < 0 ? -gap : 0) + borrow + extra,
     gap,
     borrow,
     interest,
@@ -412,8 +470,8 @@ function settleLanding(spec, state, space) {
     flavor = drawn.flavor;
   }
   const applied = space.flavor
-    ? { cash: state.cash, salary: state.salary, cashDelta: 0, salaryDelta: 0 }
-    : applyEffects(state.cash, state.salary, space, ratesFor(spec, state));
+    ? { cash: state.cash, salary: state.salary, salaryBase: state.salaryBase || 0, cashDelta: 0, salaryDelta: 0, salarySet: null }
+    : applyEffects(state.cash, state.salary, space, ratesFor(spec, state), state.salaryBase || 0);
   return { applied, flavorState, flavor };
 }
 
@@ -456,18 +514,23 @@ export function choosePath(spec, state, pathName) {
   }
   const settled = settleLanding(spec, next, space);
   const rates = ratesFor(spec, next);
+  const salaryBase = settled.applied.salaryBase ?? next.salaryBase ?? 0;
+  const startingPay = next.startingPay || settled.applied.salarySet || 0;
   const lived = takeLiving(
     spec,
     settled.applied.cash,
     charge(next.expenses, settled.applied.cashDelta),
     settled.applied.salary,
     rates,
-    isEntirety(next),
+    next.mode,
+    next.expenseLoad || 0,
   );
   next = {
     ...next,
     cash: lived.cash,
     salary: settled.applied.salary,
+    salaryBase,
+    startingPay,
     expenses: lived.expenses,
     flavorState: settled.flavorState,
     phase: space.terminal ? "ended" : "play",
@@ -486,6 +549,135 @@ export function choosePath(spec, state, pathName) {
   };
 }
 
+export function reviewFromUnit(spec, unit) {
+  const bands = spec.meta.review.bands;
+  const ticket = Math.floor(unit * 100);
+  if (!Number.isFinite(ticket) || ticket < 0 || ticket > 99) throw new Error("Review draw is out of range");
+  let cursor = 0;
+  for (const band of bands) {
+    cursor += band.count;
+    if (ticket < cursor) return band;
+  }
+  return bands[bands.length - 1];
+}
+
+function shiftWork(point, delta) {
+  const current = parsePoint(point);
+  let w = current.w + delta;
+  if (w < 0) w = 0;
+  if (w > 1) w = 1;
+  const rest = 1 - w;
+  const other = current.h + current.f;
+  if (other <= 1e-12) return { h: rest / 2, w, f: rest / 2 };
+  return {
+    h: rest * (current.h / other),
+    w,
+    f: rest * (current.f / other),
+  };
+}
+
+function payOf(salaryBase, income, payMod) {
+  return Math.round((salaryBase || 0) * (income || 1) * (payMod ?? 1));
+}
+
+function clampMod(spec, salaryBase, income, payMod, promoted, startingPay) {
+  let mod = Math.max(0, payMod);
+  if (!promoted || !startingPay || !salaryBase) return mod;
+  const floor = Math.round(startingPay * spec.meta.review.promoFloor);
+  if (payOf(salaryBase, income, mod) >= floor) return mod;
+  let lo = mod;
+  let hi = Math.max(mod, 1);
+  for (let n = 0; n < 12 && payOf(salaryBase, income, hi) < floor; n += 1) hi += 1;
+  for (let n = 0; n < 40; n += 1) {
+    const mid = (lo + hi) / 2;
+    if (payOf(salaryBase, income, mid) >= floor) hi = mid;
+    else lo = mid;
+  }
+  return hi;
+}
+
+function pointForShift(spec, point, salaryBase, payMod, promoted, startingPay, direction) {
+  const shift = spec.meta.review.shift;
+  if (direction >= 0 || !promoted || !startingPay || !salaryBase) return shiftWork(point, direction * shift);
+  const floor = Math.round(startingPay * spec.meta.review.promoFloor);
+  const full = shiftWork(point, -shift);
+  if (payOf(salaryBase, triangleRates(spec, full).income, payMod) >= floor) return full;
+  let lo = 0;
+  let hi = shift;
+  let best = parsePoint(point);
+  for (let n = 0; n < 32; n += 1) {
+    const mid = (lo + hi) / 2;
+    const candidate = shiftWork(point, -mid);
+    if (payOf(salaryBase, triangleRates(spec, candidate).income, payMod) >= floor) {
+      best = candidate;
+      lo = mid;
+    } else hi = mid;
+  }
+  return best;
+}
+
+export function applyReview(spec, state, unit) {
+  const band = reviewFromUnit(spec, unit);
+  const table = spec.meta.review;
+  let cash = state.cash;
+  let salary = state.salary || 0;
+  let salaryBase = state.salaryBase || 0;
+  let payMod = state.payMod ?? 1;
+  let point = state.point;
+  let expenseLoad = state.expenseLoad || 0;
+  let promoted = Boolean(state.promoted);
+  const startingPay = state.startingPay || 0;
+  if (!salaryBase && salary && state.mode !== "lifespan-plus") salaryBase = salary;
+  let held = false;
+  const beforeCash = cash;
+  if (band.id === "closer") {
+    if (state.mode === "lifespan-plus") {
+      point = shiftWork(point, table.shift);
+      salary = payOf(salaryBase, triangleRates(spec, point).income, payMod);
+    } else {
+      payMod += table.shift;
+      salary = payOf(salaryBase, 1, payMod);
+    }
+  } else if (band.id === "away") {
+    if (state.mode === "lifespan-plus") {
+      const unclamped = shiftWork(point, -table.shift);
+      const unclampedPay = payOf(salaryBase, triangleRates(spec, unclamped).income, payMod);
+      const floor = Math.round(startingPay * table.promoFloor);
+      point = pointForShift(spec, point, salaryBase, payMod, promoted, startingPay, -1);
+      held = promoted && startingPay > 0 && unclampedPay < floor;
+      salary = payOf(salaryBase, triangleRates(spec, point).income, payMod);
+    } else {
+      const wanted = payMod - table.shift;
+      payMod = clampMod(spec, salaryBase, 1, wanted, promoted, startingPay);
+      held = promoted && startingPay > 0 && payMod > wanted + 1e-9;
+      salary = payOf(salaryBase, 1, payMod);
+    }
+  } else if (band.id === "temp-bonus") {
+    cash += Math.round(salary * table.tempPay);
+  } else if (band.id === "temp-cut") {
+    cash -= Math.round(salary * table.tempPay);
+  } else if (band.id === "promo" && salaryBase > 0) {
+    salaryBase = Math.round(salaryBase * (1 + table.permanentPromo));
+    salary = Math.round(salary * (1 + table.permanentPromo));
+    promoted = true;
+  } else if (band.id === "expenses") {
+    expenseLoad += table.expenseBump;
+  }
+  return {
+    cash,
+    salary,
+    salaryBase,
+    payMod,
+    point,
+    expenseLoad,
+    promoted,
+    startingPay,
+    held,
+    band,
+    cashDelta: cash - beforeCash,
+  };
+}
+
 export function applyRoll(spec, state, roll) {
   if (state.phase !== "play") throw new Error("Cannot spin right now");
   if (!Number.isInteger(roll) || roll < 1 || roll > 10) throw new Error("Roll must be 1–10");
@@ -493,11 +685,9 @@ export function applyRoll(spec, state, roll) {
   const from = spaces[state.index];
   let steps = roll;
   let i = state.index;
-  const paydays = [];
   while (steps > 0 && i < spaces.length - 1) {
     i += 1;
     const space = spaces[i];
-    if (space.kind === "payday") paydays.push(space);
     if (space.kind === "stop" || i === spaces.length - 1) steps = 0;
     else steps -= 1;
   }
@@ -505,49 +695,103 @@ export function applyRoll(spec, state, roll) {
   const discarded = roll - moved;
   let cash = state.cash;
   let salary = state.salary;
+  let salaryBase = state.salaryBase || 0;
   let expenses = state.expenses || 0;
   let flavorState = state.flavorState;
   let flavor = null;
   let cashDelta = 0;
   let salaryDelta = 0;
   let living = 0;
-  const rates = ratesFor(spec, state);
-  const advanced = isEntirety(state);
+  let point = state.point;
+  let payMod = state.payMod ?? 1;
+  let expenseLoad = state.expenseLoad || 0;
+  let reviewState = state.reviewState;
+  let promoted = Boolean(state.promoted);
+  let startingPay = state.startingPay || 0;
+  const reviews = [];
+  const paydayAges = [];
   let paydayCash = 0;
-  for (const _p of paydays) {
-    cash += salary;
-    paydayCash += salary;
-  }
-  for (let n = 1; n < moved; n += 1) {
-    const year = takeLiving(spec, cash, expenses, salary, rates, advanced);
-    cash = year.cash;
-    expenses = year.expenses;
-    living += year.gap;
+  const view = () => ({
+    ...state,
+    cash,
+    salary,
+    salaryBase,
+    point,
+    payMod,
+    expenseLoad,
+    promoted,
+    startingPay,
+    flavorState,
+  });
+
+  for (let n = 1; n <= moved; n += 1) {
+    const space = spaces[state.index + n];
+    const landing = n === moved;
+    if (space.kind === "payday") {
+      paydayAges.push(space.age);
+      if (!isYearMode(state)) {
+        cash += salary;
+        paydayCash += salary;
+      } else {
+        const drawn = nextUnit(reviewState);
+        reviewState = drawn.state;
+        const beforeSalary = salary;
+        const applied = applyReview(spec, view(), drawn.unit);
+        cash = applied.cash;
+        salary = applied.salary;
+        salaryBase = applied.salaryBase;
+        point = applied.point;
+        payMod = applied.payMod;
+        expenseLoad = applied.expenseLoad;
+        promoted = applied.promoted;
+        reviews.push({
+          age: space.age,
+          spaceId: space.id,
+          id: applied.band.id,
+          label: applied.band.label,
+          cashDelta: applied.cashDelta,
+          expenseAdded: applied.band.id === "expenses" ? Math.round(beforeSalary * spec.meta.review.expenseBump) : 0,
+          salaryBefore: beforeSalary,
+          salaryAfter: applied.salary,
+          payMod: applied.payMod,
+          held: applied.held,
+        });
+      }
+    }
+    if (landing && space.kind !== "choice" && space.kind !== "payday") {
+      const settled = settleLanding(spec, view(), space);
+      cash = settled.applied.cash;
+      salary = settled.applied.salary;
+      salaryBase = settled.applied.salaryBase ?? salaryBase;
+      if (!startingPay && settled.applied.salarySet) startingPay = settled.applied.salarySet;
+      cashDelta = settled.applied.cashDelta;
+      salaryDelta = settled.applied.salaryDelta;
+      flavor = settled.flavor;
+      flavorState = settled.flavorState;
+      expenses = charge(expenses, cashDelta);
+    }
+    if (!(landing && space.kind === "choice")) {
+      const year = takeLiving(spec, cash, expenses, salary, ratesFor(spec, view()), state.mode, expenseLoad);
+      cash = year.cash;
+      expenses = year.expenses;
+      living += year.gap;
+    }
   }
   const landed = spaces[i];
-  if (landed.kind !== "choice" && landed.kind !== "payday") {
-    const settled = settleLanding(spec, { ...state, cash, salary, flavorState }, landed);
-    cash = settled.applied.cash;
-    salary = settled.applied.salary;
-    cashDelta = settled.applied.cashDelta;
-    salaryDelta = settled.applied.salaryDelta;
-    flavor = settled.flavor;
-    flavorState = settled.flavorState;
-    expenses = charge(expenses, cashDelta);
-  }
-  if (landed.kind !== "choice") {
-    const year = takeLiving(spec, cash, expenses, salary, rates, advanced);
-    cash = year.cash;
-    expenses = year.expenses;
-    living += year.gap;
-  }
   let next = {
     ...state,
     index: i,
     cash,
     salary,
+    salaryBase,
     expenses,
     flavorState,
+    point,
+    payMod,
+    expenseLoad,
+    reviewState,
+    promoted,
+    startingPay,
   };
   const spinEntry = baseEntry(
     { ...next, log: state.log },
@@ -558,8 +802,9 @@ export function applyRoll(spec, state, roll) {
       fromAge: from.age,
       toAge: landed.age,
       discarded,
-      paydayAges: paydays.map((p) => p.age),
+      paydayAges,
       paydayCash,
+      reviews,
       livingGap: living,
       cash,
       salary,
@@ -636,6 +881,8 @@ export function resolveChoice(spec, state, accept) {
   if (space.id !== state.pendingChoiceId) throw new Error("Choice mismatch");
   let cash = state.cash;
   let salary = state.salary;
+  let salaryBase = state.salaryBase || 0;
+  let startingPay = state.startingPay || 0;
   let fateState = state.fateState;
   let fate = null;
   let cashDelta = 0;
@@ -643,9 +890,11 @@ export function resolveChoice(spec, state, accept) {
   let spent = 0;
   const rates = ratesFor(spec, state);
   if (accept) {
-    const applied = applyEffects(cash, salary, space.choice.yes, rates);
+    const applied = applyEffects(cash, salary, space.choice.yes, rates, salaryBase);
     cash = applied.cash;
     salary = applied.salary;
+    salaryBase = applied.salaryBase;
+    if (!startingPay && applied.salarySet) startingPay = applied.salarySet;
     cashDelta += applied.cashDelta;
     salaryDelta += applied.salaryDelta;
     if (applied.cashDelta < 0) spent -= applied.cashDelta;
@@ -660,12 +909,14 @@ export function resolveChoice(spec, state, accept) {
       if ((bonus || 0) < 0) spent -= bonus || 0;
     }
   }
-  const lived = takeLiving(spec, cash, (state.expenses || 0) + spent, salary, rates, isEntirety(state));
+  const lived = takeLiving(spec, cash, (state.expenses || 0) + spent, salary, rates, state.mode, state.expenseLoad || 0);
   cash = lived.cash;
   let next = {
     ...state,
     cash,
     salary,
+    salaryBase,
+    startingPay,
     expenses: lived.expenses,
     fateState,
     phase: space.terminal ? "ended" : "play",
