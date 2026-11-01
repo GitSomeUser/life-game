@@ -14,7 +14,7 @@
 const KINDS = new Set(["event", "payday", "stop", "choice"]);
 const TONES = new Set(["good", "bad", "neutral"]);
 const GAME_MODES = ["life", "lifespan", "lifespan-plus"];
-const REVIEW_IDS = ["closer", "away", "temp-bonus", "temp-cut", "promo", "expenses", "stay"];
+const SHARED_REVIEW_IDS = ["temp-bonus", "temp-cut", "promo", "expenses", "stay"];
 
 export function isSpanPlus(state) {
   return state?.mode === "lifespan-plus";
@@ -131,22 +131,29 @@ export function validate(spec) {
   const review = spec.meta.review;
   if (!review) errors.push("missing review");
   else {
-    const sum = (review.bands || []).reduce((total, band) => total + band.count, 0);
-    if (sum !== 100) errors.push(`review bands sum to ${sum}, expected 100`);
-    const seen = new Set();
-    for (const band of review.bands || []) {
-      if (!REVIEW_IDS.includes(band.id)) errors.push(`unknown review ${band.id}`);
-      if (seen.has(band.id)) errors.push(`duplicate review ${band.id}`);
-      seen.add(band.id);
-      if (band.per !== 100) errors.push(`${band.id} odds must be out of 100`);
-      if (!band.label) errors.push(`${band.id} missing odds label`);
-    }
-    for (const id of REVIEW_IDS) {
-      if (!seen.has(id)) errors.push(`missing review ${id}`);
-    }
     for (const key of ["shift", "tempPay", "permanentPromo", "expenseBump", "promoFloor"]) {
       if (!Number.isFinite(review[key]) || review[key] <= 0 || review[key] > 1) {
         errors.push(`review ${key} must be a fraction above 0`);
+      }
+    }
+    const tables = {
+      lifespan: ["big-bonus", "demo", ...SHARED_REVIEW_IDS],
+      "lifespan-plus": ["closer", "away", ...SHARED_REVIEW_IDS],
+    };
+    for (const [mode, ids] of Object.entries(tables)) {
+      const bands = review[mode]?.bands || [];
+      const sum = bands.reduce((total, band) => total + band.count, 0);
+      if (sum !== 100) errors.push(`${mode} review bands sum to ${sum}, expected 100`);
+      const seen = new Set();
+      for (const band of bands) {
+        if (!ids.includes(band.id)) errors.push(`${mode} unknown review ${band.id}`);
+        if (seen.has(band.id)) errors.push(`${mode} duplicate review ${band.id}`);
+        seen.add(band.id);
+        if (band.per !== 100) errors.push(`${mode} ${band.id} odds must be out of 100`);
+        if (!band.label) errors.push(`${mode} ${band.id} missing odds label`);
+      }
+      for (const id of ids) {
+        if (!seen.has(id)) errors.push(`${mode} missing review ${id}`);
       }
     }
   }
@@ -549,8 +556,14 @@ export function choosePath(spec, state, pathName) {
   };
 }
 
-export function reviewFromUnit(spec, unit) {
-  const bands = spec.meta.review.bands;
+export function reviewBands(spec, mode) {
+  const table = mode === "lifespan" ? spec.meta.review.lifespan : spec.meta.review["lifespan-plus"];
+  if (!table?.bands) throw new Error("Missing review odds for this mode");
+  return table.bands;
+}
+
+export function reviewFromUnit(spec, unit, mode = "lifespan-plus") {
+  const bands = reviewBands(spec, mode);
   const ticket = Math.floor(unit * 100);
   if (!Number.isFinite(ticket) || ticket < 0 || ticket > 99) throw new Error("Review draw is out of range");
   let cursor = 0;
@@ -576,48 +589,29 @@ function shiftWork(point, delta) {
   };
 }
 
-function payOf(salaryBase, income, payMod) {
-  return Math.round((salaryBase || 0) * (income || 1) * (payMod ?? 1));
+function raisePay(salary, salaryBase, rate) {
+  return {
+    salary: Math.round(salary * (1 + rate)),
+    salaryBase: Math.round(salaryBase * (1 + rate)),
+  };
 }
 
-function clampMod(spec, salaryBase, income, payMod, promoted, startingPay) {
-  let mod = Math.max(0, payMod);
-  if (!promoted || !startingPay || !salaryBase) return mod;
-  const floor = Math.round(startingPay * spec.meta.review.promoFloor);
-  if (payOf(salaryBase, income, mod) >= floor) return mod;
-  let lo = mod;
-  let hi = Math.max(mod, 1);
-  for (let n = 0; n < 12 && payOf(salaryBase, income, hi) < floor; n += 1) hi += 1;
-  for (let n = 0; n < 40; n += 1) {
-    const mid = (lo + hi) / 2;
-    if (payOf(salaryBase, income, mid) >= floor) hi = mid;
-    else lo = mid;
+function lowerPay(salary, salaryBase, startingPay, rate, floorRate) {
+  const floor = Math.round((startingPay || 0) * floorRate);
+  let nextSalary = Math.round(salary * (1 - rate));
+  let nextBase = Math.round((salaryBase || 0) * (1 - rate));
+  let held = false;
+  if (startingPay && nextSalary < floor) {
+    held = true;
+    if (salary > 0) nextBase = Math.round((salaryBase || 0) * (floor / salary));
+    else nextBase = floor;
+    nextSalary = floor;
   }
-  return hi;
-}
-
-function pointForShift(spec, point, salaryBase, payMod, promoted, startingPay, direction) {
-  const shift = spec.meta.review.shift;
-  if (direction >= 0 || !promoted || !startingPay || !salaryBase) return shiftWork(point, direction * shift);
-  const floor = Math.round(startingPay * spec.meta.review.promoFloor);
-  const full = shiftWork(point, -shift);
-  if (payOf(salaryBase, triangleRates(spec, full).income, payMod) >= floor) return full;
-  let lo = 0;
-  let hi = shift;
-  let best = parsePoint(point);
-  for (let n = 0; n < 32; n += 1) {
-    const mid = (lo + hi) / 2;
-    const candidate = shiftWork(point, -mid);
-    if (payOf(salaryBase, triangleRates(spec, candidate).income, payMod) >= floor) {
-      best = candidate;
-      lo = mid;
-    } else hi = mid;
-  }
-  return best;
+  return { salary: nextSalary, salaryBase: nextBase, held };
 }
 
 export function applyReview(spec, state, unit) {
-  const band = reviewFromUnit(spec, unit);
+  const band = reviewFromUnit(spec, unit, state.mode);
   const table = spec.meta.review;
   let cash = state.cash;
   let salary = state.salary || 0;
@@ -629,39 +623,38 @@ export function applyReview(spec, state, unit) {
   const startingPay = state.startingPay || 0;
   if (!salaryBase && salary && state.mode !== "lifespan-plus") salaryBase = salary;
   let held = false;
+  let expenseAdded = 0;
   const beforeCash = cash;
+  const beforeSalary = salary;
   if (band.id === "closer") {
-    if (state.mode === "lifespan-plus") {
-      point = shiftWork(point, table.shift);
-      salary = payOf(salaryBase, triangleRates(spec, point).income, payMod);
-    } else {
-      payMod += table.shift;
-      salary = payOf(salaryBase, 1, payMod);
-    }
+    point = shiftWork(point, table.shift);
   } else if (band.id === "away") {
-    if (state.mode === "lifespan-plus") {
-      const unclamped = shiftWork(point, -table.shift);
-      const unclampedPay = payOf(salaryBase, triangleRates(spec, unclamped).income, payMod);
-      const floor = Math.round(startingPay * table.promoFloor);
-      point = pointForShift(spec, point, salaryBase, payMod, promoted, startingPay, -1);
-      held = promoted && startingPay > 0 && unclampedPay < floor;
-      salary = payOf(salaryBase, triangleRates(spec, point).income, payMod);
-    } else {
-      const wanted = payMod - table.shift;
-      payMod = clampMod(spec, salaryBase, 1, wanted, promoted, startingPay);
-      held = promoted && startingPay > 0 && payMod > wanted + 1e-9;
-      salary = payOf(salaryBase, 1, payMod);
-    }
+    point = shiftWork(point, -table.shift);
+  } else if (band.id === "big-bonus" && salaryBase > 0) {
+    cash += Math.round(beforeSalary * table.tempPay);
+    const raised = raisePay(salary, salaryBase, table.permanentPromo);
+    salary = raised.salary;
+    salaryBase = raised.salaryBase;
+    promoted = true;
+  } else if (band.id === "demo" && salaryBase > 0) {
+    expenseAdded = Math.round(beforeSalary * table.expenseBump);
+    cash -= expenseAdded;
+    const lowered = lowerPay(salary, salaryBase, startingPay, table.permanentPromo, table.promoFloor);
+    salary = lowered.salary;
+    salaryBase = lowered.salaryBase;
+    held = lowered.held;
   } else if (band.id === "temp-bonus") {
     cash += Math.round(salary * table.tempPay);
   } else if (band.id === "temp-cut") {
     cash -= Math.round(salary * table.tempPay);
   } else if (band.id === "promo" && salaryBase > 0) {
-    salaryBase = Math.round(salaryBase * (1 + table.permanentPromo));
-    salary = Math.round(salary * (1 + table.permanentPromo));
+    const raised = raisePay(salary, salaryBase, table.permanentPromo);
+    salary = raised.salary;
+    salaryBase = raised.salaryBase;
     promoted = true;
   } else if (band.id === "expenses") {
     expenseLoad += table.expenseBump;
+    expenseAdded = Math.round(beforeSalary * table.expenseBump);
   }
   return {
     cash,
@@ -674,6 +667,7 @@ export function applyReview(spec, state, unit) {
     startingPay,
     held,
     band,
+    expenseAdded,
     cashDelta: cash - beforeCash,
   };
 }
@@ -750,7 +744,7 @@ export function applyRoll(spec, state, roll) {
           id: applied.band.id,
           label: applied.band.label,
           cashDelta: applied.cashDelta,
-          expenseAdded: applied.band.id === "expenses" ? Math.round(beforeSalary * spec.meta.review.expenseBump) : 0,
+          expenseAdded: applied.expenseAdded,
           salaryBefore: beforeSalary,
           salaryAfter: applied.salary,
           payMod: applied.payMod,
