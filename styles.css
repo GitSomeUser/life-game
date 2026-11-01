@@ -649,41 +649,70 @@ h2 {
   }
 }
 
-.climb .space.pending,
-.choice.pending {
+.vibrate {
   animation: choice-vibrate 1.6s steps(4, end) infinite;
+}
+
+.vibrate.alt { animation-delay: -0.4s; }
+
+.steady {
+  animation: none;
+  font-weight: 700;
+  opacity: 1;
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+}
+
+.dim-choice {
+  animation: none;
+  font-weight: 400;
+  opacity: 0.38;
+}
+
+.climb .space.choice-space .name,
+.climb .space.choice-space .begin-tag {
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: 18px;
+  letter-spacing: -0.03em;
+  text-transform: none;
+}
+
+.climb .space.choice-space.pending {
+  background: rgba(7, 7, 7, 0.82);
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+.climb .space.choice-space.now,
+.climb .space.choice-space.picked {
+  background: rgba(7, 7, 7, 0.82);
+  color: var(--ink);
+  border-color: var(--line-strong);
+  animation: none;
+}
+
+.choice.decision {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  min-width: 9rem;
+  padding: 12px 18px;
+  border: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
   background: transparent;
   color: var(--ink);
-  border-color: var(--line);
-}
-
-.climb .space.pending {
-  background: rgba(7, 7, 7, 0.82);
-}
-
-.climb .space.pending.alt,
-.choice.pending.alt {
-  animation-delay: -0.4s;
-}
-
-.choice.pending {
-  padding: 8px 12px;
-  border-bottom: 0;
+  font: 500 28px/0.9 "Iowan Old Style", Palatino, Georgia, serif;
+  letter-spacing: -0.03em;
+  text-transform: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   body.mode-unset .modes button span,
-  .climb .space.pending,
-  .choice.pending {
+  .vibrate {
     animation: none;
     font-weight: 700;
     opacity: 1;
     font-family: "Iowan Old Style", Palatino, Georgia, serif;
-    background: transparent;
-    color: var(--ink);
-  }
-  .climb .space.pending {
-    background: rgba(7, 7, 7, 0.82);
   }
 }
 
