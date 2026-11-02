@@ -402,7 +402,7 @@ function renderBoard() {
         if (alt) name?.classList.add("alt");
         const tag = document.createElement("span");
         tag.className = alt ? "begin-tag vibrate alt" : "begin-tag vibrate";
-        tag.textContent = point.lane === "study" ? "Begin study" : "Begin work";
+        tag.textContent = point.lane === "study" ? "Begin study" : "Make money now";
         btn.append(tag);
         btn.disabled = !gameName() || !state.mode;
         btn.setAttribute("aria-pressed", "false");
@@ -519,16 +519,25 @@ function renderStory() {
   if (!space) {
     showFlavor(null);
     kickerEl.textContent = state.mode ? "Choose" : "";
-    titleEl.textContent = state.mode ? "Study, or work." : "";
+    titleEl.textContent = state.mode ? "Study, or make money right away." : "";
     const income = isEntirety(state) ? triangleRates(spec, state.point).income : 1;
     const opening = spec.paths.study.spaces[0];
+    const studyJob = spec.paths.study.spaces[3];
+    const workJob = spec.paths.work.spaces[0];
     const tuition = state.mode === "life" && Number.isFinite(opening.lifeCash) ? opening.lifeCash : opening.cash;
     const debt = Math.abs(tuition);
-    const studyPay = Math.round(spec.meta.studySalary * income);
-    const workPay = Math.round(spec.meta.workSalary * income);
+    const studyBase = state.mode === "life" && Number.isFinite(studyJob.lifeSalarySet) ? studyJob.lifeSalarySet : spec.meta.studySalary;
+    const workBase = state.mode === "life" && Number.isFinite(workJob.lifeSalarySet) ? workJob.lifeSalarySet : spec.meta.workSalary;
+    const studyPay = Math.round(studyBase * income);
+    const workPay = Math.round(workBase * income);
+    const stake = state.mode === "life" && Number.isFinite(workJob.lifeCash) ? workJob.lifeCash : 0;
+    const workStart = spec.meta.startingCash + stake;
     const unit = state.mode === "life" ? "squares" : "years";
+    const workLine = stake
+      ? `Work makes money right away: no tuition, and you start with ${money(workStart)}.`
+      : `Work makes money right away: no tuition, so you keep ${money(workStart)} instead of taking on that debt.`;
     detailEl.textContent = state.mode
-      ? `Study costs ${money(debt)} now and pays ${money(studyPay)} a year after 21. Work pays ${money(workPay)} from the first job. Same number of ${unit} either way.`
+      ? `Study costs ${money(debt)} now and pays ${money(studyPay)} a year after 21. ${workLine} Pay starts at ${money(workPay)}. Same number of ${unit} either way. The house, the cards, the investments, and the kids swing the ending.`
       : "";
     showReview(null);
     return;
