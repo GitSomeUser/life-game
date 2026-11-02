@@ -57,13 +57,15 @@ test("study pays tuition immediately and sets salary only at the job stop", () =
 });
 
 test("work collects the early payday when passing it, then can raise only on a landing", () => {
-  const pay = spec.meta.workSalary;
-  const raise = spec.paths.work.spaces[3].salaryDelta;
+  const job = spec.paths.work.spaces[0];
+  const pay = job.lifeSalarySet;
+  const raise = spec.paths.work.spaces[3].lifeSalaryDelta;
+  const opened = spec.meta.startingCash + job.lifeCash;
   let state = choosePath(spec, createGame(spec, 3, undefined, "life"), "work");
   assert.equal(state.salary, pay);
   state = applyRoll(spec, state, 1);
   assert.equal(currentSpace(spec, state).age, 19);
-  assert.equal(state.cash, spec.meta.startingCash + pay);
+  assert.equal(state.cash, opened + pay);
   const spun = state.log.find((e) => e.t === "spin");
   assert.equal(spun.paydayCash, pay);
   assert.equal(spun.reviews.length, 0);
@@ -73,12 +75,14 @@ test("work collects the early payday when passing it, then can raise only on a l
 });
 
 test("a stop cuts the move and still pays salaries passed on the way", () => {
-  const pay = spec.meta.workSalary;
+  const job = spec.paths.work.spaces[0];
+  const pay = job.lifeSalarySet;
+  const opened = spec.meta.startingCash + job.lifeCash;
   const party = spec.paths.shared.spaces.find((s) => s.id === "partnership").lifeCash;
   let state = choosePath(spec, createGame(spec, 1, undefined, "life"), "work");
   state = applyRoll(spec, state, 10);
   assert.equal(currentSpace(spec, state).id, "partnership");
-  assert.equal(state.cash, spec.meta.startingCash + pay + pay + party);
+  assert.equal(state.cash, opened + pay + pay + party);
   const spinEntry = state.log.find((e) => e.t === "spin");
   assert.deepEqual(spinEntry.paydayAges, [19, 23]);
   assert.equal(spinEntry.paydayCash, pay + pay);
@@ -121,13 +125,15 @@ test("passing a payday then landing on a cost pays salary once and the cost once
   assert.equal(currentSpace(spec, state).id, "partnership");
   state = applyRoll(spec, state, 3);
   assert.equal(currentSpace(spec, state).id, "child");
-  const pay = spec.meta.workSalary;
+  const job = spec.paths.work.spaces[0];
+  const pay = job.lifeSalarySet;
+  const opened = spec.meta.startingCash + job.lifeCash;
   const party = spec.paths.shared.spaces.find((s) => s.id === "partnership").lifeCash;
   const child = spec.paths.shared.spaces.find((s) => s.id === "child").lifeCash;
   const lastSpin = [...state.log].reverse().find((e) => e.t === "spin");
   assert.deepEqual(lastSpin.paydayAges, [28]);
   assert.equal(lastSpin.paydayCash, pay);
-  assert.equal(state.cash, spec.meta.startingCash + pay + pay + party + pay + child);
+  assert.equal(state.cash, opened + pay + pay + party + pay + child);
 });
 
 test("the operation stays on the fate stream, and an investment does not", () => {
@@ -183,8 +189,12 @@ test("no-stakes years draw a flavor card and leave cash alone", () => {
     assert.equal(space.flavor, undefined);
   }
   assert.equal(spec.paths.study.spaces[3].salarySet, 68000);
+  assert.equal(spec.paths.study.spaces[3].lifeSalarySet, 66000);
   assert.equal(spec.paths.work.spaces[0].salarySet, 48000);
+  assert.equal(spec.paths.work.spaces[0].lifeSalarySet, 51000);
+  assert.equal(spec.paths.work.spaces[0].lifeCash, 40000);
   assert.equal(spec.paths.work.spaces[3].salaryDelta, 10000);
+  assert.equal(spec.paths.work.spaces[3].lifeSalaryDelta, 4000);
   for (const id of ["study-nights", "quiet-37", "reunion", "farewell"]) {
     const space = track(spec, "study").find((s) => s.id === id);
     assert.equal(space.flavor, true);
@@ -368,7 +378,7 @@ test("life and lifespan ignore the triangle and the wedge", () => {
   assert.equal(yearTuition, -124000);
   assert.notEqual(lifeTuition, yearTuition);
   const placed = applyRoll(spec, life, 10);
-  assert.equal(placed.salary, spec.meta.studySalary);
+  assert.equal(placed.salary, spec.paths.study.spaces[3].lifeSalarySet);
   assert.equal(placed.death, null);
 
   const lifespan = choosePath(spec, createGame(spec, 7, point, "lifespan"), "study");
@@ -383,8 +393,8 @@ test("life and lifespan ignore the triangle and the wedge", () => {
   assert.equal(entirety.cash, owed - Math.round(-owed * spec.meta.triangle.borrowingRate));
 
   const hired = choosePath(spec, createGame(spec, 3, point, "life"), "work");
-  assert.equal(hired.salary, spec.meta.workSalary);
-  assert.equal(hired.cash, spec.meta.startingCash);
+  assert.equal(hired.salary, spec.paths.work.spaces[0].lifeSalarySet);
+  assert.equal(hired.cash, spec.meta.startingCash + spec.paths.work.spaces[0].lifeCash);
 
   const play = (mode, seed) => {
     let state = choosePath(spec, createGame(spec, seed, point, mode), "work");
@@ -429,7 +439,7 @@ test("entirety pays 4 percent on positive savings and still borrows when negativ
   const hiredAfter = spec.meta.startingCash + spec.meta.workSalary - hiredBill;
   assert.equal(hired.cash, hiredAfter + Math.round(hiredAfter * rate));
   const life = choosePath(spec, createGame(spec, 3, { h: 1 / 3, w: 1 / 3, f: 1 / 3 }, "life"), "work");
-  assert.equal(life.cash, spec.meta.startingCash);
+  assert.equal(life.cash, spec.meta.startingCash + spec.paths.work.spaces[0].lifeCash);
   const span = choosePath(spec, createGame(spec, 3, { h: 1 / 3, w: 1 / 3, f: 1 / 3 }, "lifespan"), "work");
   assert.equal(span.cash, spec.meta.startingCash + spec.meta.workSalary - hiredBill);
   assert.notEqual(span.cash, life.cash);
@@ -468,7 +478,7 @@ test("review odds are the seven stated bands", () => {
 test("a former payday is a review on Life$pan and a payday on Life", () => {
   const life = applyRoll(spec, choosePath(spec, createGame(spec, 4, undefined, "life"), "work"), 1);
   assert.equal(currentSpace(spec, life).kind, "payday");
-  assert.equal(life.log.find((entry) => entry.t === "spin").paydayCash, spec.meta.workSalary);
+  assert.equal(life.log.find((entry) => entry.t === "spin").paydayCash, spec.paths.work.spaces[0].lifeSalarySet);
   const span = applyRoll(spec, choosePath(spec, createGame(spec, 4, undefined, "lifespan"), "work"), 1);
   const review = span.log.find((entry) => entry.t === "spin").reviews[0];
   assert.equal(review.age, 19);
@@ -525,10 +535,12 @@ test("review results change pay, cash, or expenses, and a demo stops at 80 perce
 
 test("life does not pay each space, and a year mode does", () => {
   const pay = spec.meta.workSalary;
+  const lifePay = spec.paths.work.spaces[0].lifeSalarySet;
+  const lifeOpen = spec.meta.startingCash + spec.paths.work.spaces[0].lifeCash;
   const rates = triangleRates(spec, { h: 1 / 3, w: 1 / 3, f: 1 / 3 });
   const bill = annualExpenses(pay, rates, spec);
   const life = choosePath(spec, createGame(spec, 3, undefined, "life"), "work");
-  assert.equal(life.cash, spec.meta.startingCash);
+  assert.equal(life.cash, lifeOpen);
   assert.equal(life.log.find((entry) => entry.t === "resolve").yearPay, 0);
   assert.equal(life.log.find((entry) => entry.t === "resolve").yearBill, 0);
   const span = choosePath(spec, createGame(spec, 3, undefined, "lifespan"), "work");
@@ -539,8 +551,8 @@ test("life does not pay each space, and a year mode does", () => {
   const lifeSpin = lifeMove.log.find((entry) => entry.t === "spin");
   assert.equal(lifeSpin.yearPay, 0);
   assert.equal(lifeSpin.yearBill, 0);
-  assert.equal(lifeSpin.paydayCash, pay);
-  assert.equal(lifeMove.cash, spec.meta.startingCash + pay);
+  assert.equal(lifeSpin.paydayCash, lifePay);
+  assert.equal(lifeMove.cash, lifeOpen + lifePay);
   const spanMove = applyRoll(spec, span, 1);
   const spanSpin = spanMove.log.find((entry) => entry.t === "spin");
   assert.equal(spanSpin.paydayCash, 0);
