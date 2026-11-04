@@ -1,8 +1,12 @@
 import { deathMarkup } from "./death.mjs";
 import {
+  choiceCost,
+  choiceFail,
+  choiceRaise,
   choosePath,
   createGame,
   freshSeed,
+  openingFigures,
   currentSpace,
   deathProbability,
   isEntirety,
@@ -143,10 +147,22 @@ function choiceLine(space) {
     const pct = Math.round(offer.p * 100);
     return `Put ${money(offer.stake)} in? ${pct}% chance it doubles. Otherwise you lose it.`;
   }
+  const yes = space.choice.yes || {};
+  const cost = choiceCost(spec, yes, state.mode);
+  const fail = choiceFail(spec, space.choice.fate, state.mode);
+  const raise = choiceRaise(spec, yes, state.mode);
+  if (space.id === "course") {
+    return `Pay ${money(Math.abs(cost))} for an online course that raises your pay by ${money(raise)}?`;
+  }
+  if (space.id === "move") {
+    return `Pay ${money(Math.abs(cost))} against the card balance now? Otherwise it keeps stacking.`;
+  }
+  if (space.id === "quiet-56") {
+    return `Pay ${money(Math.abs(cost))} for the operation now? Wait, and a 1-in-2 emergency costs ${money(Math.abs(fail))}.`;
+  }
   const prompt = state.mode === "life" && space.choice.lifePrompt ? space.choice.lifePrompt : space.choice.prompt;
   const income = isEntirety(state) ? triangleRates(spec, state.point).income : 1;
   if (Math.abs(income - 1) < 1e-9) return prompt;
-  const yes = space.choice.yes || {};
   const bits = [];
   if (yes.salaryDelta) bits.push(`pay ${money(Math.round(yes.salaryDelta * income))}`);
   if (yes.salarySet != null) bits.push(`pay ${money(Math.round(yes.salarySet * income))}`);
@@ -521,17 +537,12 @@ function renderStory() {
     kickerEl.textContent = state.mode ? "Choose" : "";
     titleEl.textContent = state.mode ? "Study, or make money right away." : "";
     const income = isEntirety(state) ? triangleRates(spec, state.point).income : 1;
-    const opening = spec.paths.study.spaces[0];
-    const studyJob = spec.paths.study.spaces[3];
-    const workJob = spec.paths.work.spaces[0];
-    const tuition = state.mode === "life" && Number.isFinite(opening.lifeCash) ? opening.lifeCash : opening.cash;
-    const debt = Math.abs(tuition);
-    const studyBase = state.mode === "life" && Number.isFinite(studyJob.lifeSalarySet) ? studyJob.lifeSalarySet : spec.meta.studySalary;
-    const workBase = state.mode === "life" && Number.isFinite(workJob.lifeSalarySet) ? workJob.lifeSalarySet : spec.meta.workSalary;
-    const studyPay = Math.round(studyBase * income);
-    const workPay = Math.round(workBase * income);
-    const stake = state.mode === "life" && Number.isFinite(workJob.lifeCash) ? workJob.lifeCash : 0;
-    const workStart = spec.meta.startingCash + stake;
+    const figures = openingFigures(spec, state.mode);
+    const debt = figures.tuition;
+    const studyPay = Math.round(figures.studyPay * income);
+    const workPay = Math.round(figures.workPay * income);
+    const workStart = figures.workStart;
+    const stake = workStart - spec.meta.startingCash;
     const unit = state.mode === "life" ? "squares" : "years";
     const workLine = stake
       ? `Work makes money right away: no tuition, and you start with ${money(workStart)}.`
