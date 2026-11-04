@@ -1,7 +1,7 @@
 {
   "meta": {
     "stage": 2,
-    "version": "0.10.4",
+    "version": "0.10.5",
     "ageStart": 18,
     "ageEnd": 68,
     "yearsPerSpace": 1,
@@ -23,7 +23,7 @@
       "On Life$pan and Life$pan+, landing on or passing a former payday runs one Promo? outcome from meta.review, then that year pays and charges like any other space. The card shows the odds for the active mode.",
       "A later demotion cannot drop pay below 80% of starting pay. A temporary pay change, and a temporary expense increase, are this year only.",
       "A stop ends the move even if steps remain. Then you spin again.",
-      "Ages 18 to 21 are a fork. The choice is Study, or make money right away. Study pays tuition up front and a higher salary after 21. Work skips that debt. On Life, Work also starts with more savings and no tuition. Each path has four spaces, then one shared track from 22 to 68. The house, the cards, the investments, and the kids swing the ending. On Life those squares are not years. On Life$pan and Life$pan+ each square is one year.",
+      "Ages 18 to 21 are a fork. The choice is Study, or make money right away. Study pays tuition up front and a higher salary after 21. Work skips that debt and starts with cash. That is true on Life, and on Life$pan and Life$pan+. Each path has four spaces, then one shared track from 22 to 68. The house, the cards, the investments, and the kids swing the ending. On Life those squares are not years. On Life$pan and Life$pan+ each square is one year.",
       "At 68 the working track ends. The climb has no downslope. Decumulation is not in this version. On Life$pan+, positive savings earn 4% a year and negative savings pay the 4% borrowing charge. Life and Life$pan do neither. Retirement spaces are not in this version.",
       "One point in the triangle sets health, work, and frugality. Weights are inverse distance to the vertices, so an edge does not freeze the far one. It locks when the path starts. Reviews on Life$pan+ may nudge it later. The center is still one third.",
       "A click on Life, Life$pan, or Life$pan+ starts a new game. Resume loads the name you typed. An empty name does nothing. Every decision uses that same treatment: waiting options vibrate between bold and dim, the picked one stays steady and bold, and the others stay dim. That includes Study or Work, a yes or no, and any other choice. Credit-card debt stacks on every space you move through, and the due square collects the balance even when you only pass it."
@@ -155,7 +155,27 @@
       }
     },
     "cardRate": 0.15,
-    "lifeCardRate": 0.15
+    "lifeCardRate": 0.15,
+    "workStake": {
+      "lifespan": 150000,
+      "lifespan-plus": 90000
+    },
+    "spendAdjust": {
+      "lifespan": -0.2,
+      "lifespan-plus": 0.02
+    },
+    "cashScale": {
+      "lifespan": {
+        "pos": 18,
+        "neg": 3.6,
+        "card": 1.35
+      },
+      "lifespan-plus": {
+        "pos": 3,
+        "neg": 2,
+        "card": 1
+      }
+    }
   },
   "paths": {
     "study": {
@@ -169,7 +189,7 @@
           "tone": "bad",
           "kind": "event",
           "cash": -124000,
-          "lifeCash": -64000,
+          "lifeCash": -150000,
           "adapts": "College path opening. Four years of the published public in-state student budget. No gendered campus."
         },
         {
@@ -200,7 +220,8 @@
           "tone": "good",
           "kind": "stop",
           "salarySet": 68000,
-          "lifeSalarySet": 66000,
+          "lifeSalarySet": 165000,
+          "plusSalarySet": 100000,
           "adapts": "Job Search stop. Guaranteed, like the classic red space. Higher pay than the work path."
         }
       ]
@@ -216,8 +237,8 @@
           "tone": "good",
           "kind": "event",
           "salarySet": 48000,
-          "lifeSalarySet": 51000,
-          "lifeCash": 40000,
+          "lifeSalarySet": 125000,
+          "lifeCash": 300000,
           "adapts": "Career path opening. Immediate job at the high-school-occupation median. No degree gate."
         },
         {
@@ -247,7 +268,7 @@
           "tone": "good",
           "kind": "event",
           "salaryDelta": 10000,
-          "lifeSalaryDelta": 4000,
+          "lifeSalaryDelta": 15000,
           "adapts": "From high-school-occupation pay toward the construction-trades median. Land only. Not a stop."
         }
       ]
@@ -263,7 +284,7 @@
           "tone": "bad",
           "kind": "event",
           "cash": -24000,
-          "lifeCash": -12000,
+          "lifeCash": -312000,
           "adapts": "First household setup after the paths merge."
         },
         {
@@ -283,7 +304,7 @@
           "tone": "bad",
           "kind": "event",
           "cash": -42000,
-          "lifeCash": -18000,
+          "lifeCash": -468000,
           "adapts": "A current mishap. A scam text, settled in cash."
         },
         {
@@ -351,7 +372,8 @@
             "noLabel": "Skip it",
             "yes": {
               "cash": -4000,
-              "salaryDelta": 4000
+              "salaryDelta": 4000,
+              "lifeSalaryDelta": 12000
             },
             "no": {}
           }
@@ -395,7 +417,7 @@
           "tone": "bad",
           "kind": "stop",
           "cash": -420000,
-          "lifeCash": -300000,
+          "lifeCash": -540000,
           "adapts": "Buy a House stop. A first-time down payment, not the full sale price and not a deed deck."
         },
         {
@@ -416,7 +438,7 @@
           "tone": "bad",
           "kind": "event",
           "cash": -78000,
-          "lifeCash": -28000,
+          "lifeCash": -728000,
           "adapts": "Twins space. No sexes assigned."
         },
         {
@@ -446,7 +468,7 @@
           "tone": "bad",
           "kind": "event",
           "cash": -36000,
-          "lifeCash": -16000,
+          "lifeCash": -416000,
           "adapts": "Serious mishap. Stolen online identity. An $8,000 hit."
         },
         {
@@ -457,6 +479,7 @@
           "tone": "good",
           "kind": "event",
           "salaryDelta": 8000,
+          "lifeSalaryDelta": 24000,
           "adapts": "Midlife raise. Land only."
         },
         {
@@ -513,7 +536,7 @@
           "tone": "bad",
           "kind": "event",
           "cash": -32000,
-          "lifeCash": -14000,
+          "lifeCash": -364000,
           "adapts": "A stack of subscriptions, in place of a small clinic bill. The later medical year still carries the health cost."
         },
         {
@@ -546,7 +569,7 @@
           "tone": "bad",
           "kind": "event",
           "cash": -18000,
-          "lifeCash": -8000,
+          "lifeCash": -208000,
           "adapts": "Lost phone. The device, separate from the stolen card."
         },
         {
@@ -578,7 +601,7 @@
           "kind": "event",
           "adapts": "Was a quiet year. A flavor card, no cash.",
           "cash": -54000,
-          "lifeCash": -20000
+          "lifeCash": -520000
         },
         {
           "id": "cola",
@@ -588,6 +611,7 @@
           "tone": "good",
           "kind": "event",
           "salaryDelta": 4000,
+          "lifeSalaryDelta": 12000,
           "adapts": "Small raise. Land only."
         },
         {
@@ -634,6 +658,7 @@
           "tone": "good",
           "kind": "event",
           "salaryDelta": 6000,
+          "lifeSalaryDelta": 18000,
           "adapts": "Late-career raise. Land only."
         },
         {
@@ -646,12 +671,12 @@
           "adapts": "Breathing room. A flavor card, no cash.",
           "choice": {
             "prompt": "Pay $120,000 for the operation now? Wait, and a 1-in-2 emergency costs $210,000.",
-            "lifePrompt": "Pay $36,000 for the operation now? Wait, and a 1-in-2 emergency costs $84,000.",
+            "lifePrompt": "Pay $90,000 for the operation now? Wait, and a 1-in-2 emergency costs $200,000.",
             "yesLabel": "Pay now",
             "noLabel": "Wait",
             "yes": {
               "cash": -120000,
-              "lifeCash": -36000
+              "lifeCash": -90000
             },
             "no": {},
             "fate": {
@@ -659,7 +684,7 @@
               "p": 0.5,
               "successCash": 0,
               "failCash": -210000,
-              "lifeFailCash": -84000
+              "lifeFailCash": -200000
             }
           }
         },
@@ -690,7 +715,7 @@
           "tone": "bad",
           "kind": "event",
           "cash": -28000,
-          "lifeCash": -14000,
+          "lifeCash": -364000,
           "adapts": "Family support. No mother/father assignment."
         },
         {
@@ -702,7 +727,7 @@
           "kind": "event",
           "adapts": "Was the group tab with a small cost. The cost is zero. A flavor card.",
           "cash": -22000,
-          "lifeCash": -10000
+          "lifeCash": -260000
         },
         {
           "id": "quiet-61",
@@ -713,7 +738,7 @@
           "kind": "event",
           "adapts": "Breathing room. A flavor card, no cash.",
           "cash": -40000,
-          "lifeCash": -22000
+          "lifeCash": -572000
         },
         {
           "id": "contract",
@@ -729,7 +754,7 @@
           "id": "pay-63",
           "age": 63,
           "title": "Payday",
-          "detail": "Salary hits the account.",
+          "detail": "Salary hits the account. One year of the track remains.",
           "tone": "good",
           "kind": "payday",
           "adapts": "Payday near the classic early-retirement age. No early retirement choice in this version."
@@ -754,7 +779,7 @@
           "kind": "event",
           "adapts": "Breathing room. A flavor card, no cash.",
           "cash": -64000,
-          "lifeCash": -24000
+          "lifeCash": -624000
         },
         {
           "id": "farewell",
