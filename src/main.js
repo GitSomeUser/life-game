@@ -247,7 +247,7 @@ function gameName() {
 }
 
 function startPath(pathName) {
-  if (!gameName() || !state?.mode) return;
+  if (!state?.mode || state.path) return;
   stopMotion();
   state = choosePath(spec, createGame(spec, state.seed, state.point, state.mode), pathName);
   pointLocked = true;
@@ -422,11 +422,11 @@ function renderBoard() {
         tag.className = alt ? "begin-tag vibrate alt" : "begin-tag vibrate";
         tag.textContent = point.lane === "study" ? "Begin study" : "Make money now";
         btn.append(tag);
-        btn.disabled = !gameName() || !state.mode;
+        btn.disabled = !state.mode;
         btn.setAttribute("aria-pressed", "false");
         btn.addEventListener("click", (event) => {
           event.stopPropagation();
-          if (!gameName() || !state.mode) return;
+          if (!state.mode) return;
           startPath(point.lane);
           render();
         });
@@ -565,6 +565,25 @@ function renderStory() {
       ? `Study costs ${money(debt)} now and pays ${money(studyPay)} a year after 21. ${workLine} Pay starts at ${money(workPay)}. Same number of ${unit} either way. The house, the cards, the investments, and the kids swing the ending.`
       : "";
     showGutCheck(null);
+    if (state.mode && state.phase === "choose") {
+      for (const [lane, label, cls] of [
+        ["study", "Begin study", "vibrate"],
+        ["work", "Make money now", "vibrate alt"],
+      ]) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "choice decision";
+        const span = document.createElement("span");
+        span.className = cls;
+        span.textContent = label;
+        btn.append(span);
+        btn.addEventListener("click", () => {
+          startPath(lane);
+          render();
+        });
+        choicesEl.append(btn);
+      }
+    }
     return;
   }
   const spun = lastSpin();
@@ -1129,16 +1148,9 @@ function renderControls() {
   if (state.phase === "choose") {
     actBtn.textContent = "Spin";
     actBtn.disabled = true;
-    if (!state.mode) readout.textContent = "Pick a mode, then name the game.";
-    else if (!isEntirety(state)) {
-      readout.textContent = gameName()
-        ? "Choose a path. The spinner is 1 through 10."
-        : "Name the game, then choose a path.";
-    } else {
-      readout.textContent = gameName()
-        ? "Choose a path. The wedge is already on the wheel."
-        : "Name the game, drag the point, then choose a path.";
-    }
+    if (!state.mode) readout.textContent = "Pick Life, Life$pan, or Life$pan+.";
+    else if (!isEntirety(state)) readout.textContent = "Choose a path. The spinner is 1 through 10.";
+    else readout.textContent = "Choose a path. Drag the point first if you want. The wedge is already on the wheel.";
   } else if (state.phase === "choice") {
     actBtn.textContent = "Spin";
     actBtn.disabled = true;
@@ -1321,6 +1333,6 @@ if (!specRes.ok) {
   fineEl.textContent = `${spec.meta.rules.join(" ")} Amounts, the triangle, and both mortality series live in the board spec. One player. Stats are public.`;
   state = createGame(spec, openingSeed(), pointFromQuery(), modeFromQuery());
   const preset = params.get("path");
-  if ((preset === "study" || preset === "work") && gameName() && state.mode) startPath(preset);
+  if ((preset === "study" || preset === "work") && state.mode) startPath(preset);
   render();
 }
