@@ -15,6 +15,7 @@ import {
   portraitStats,
   resolveChoice,
   spin,
+  spinPay,
   track,
   triangleRates,
 } from "./engine.mjs";
@@ -69,6 +70,8 @@ const copyBtn = document.querySelector("#copy");
 const resumeOpenBtn = document.querySelector("#resume-open");
 const readout = document.querySelector("#roll-readout");
 const wheel = document.querySelector("#wheel");
+const runnerEl = document.querySelector("#runner");
+const sceneEl = document.querySelector("#scene");
 
 let spec = null;
 let state = null;
@@ -82,6 +85,8 @@ let playerSlot = 0;
 let audioCtx = null;
 let climbShift = null;
 let climbSize = "";
+let bank = { shown: null, flash: 0, drop: false };
+let sceneTimer = 0;
 
 const H = { x: 130, y: 22 };
 const W = { x: 230, y: 195.205 };
@@ -276,6 +281,9 @@ function movePay(spun = lastSpin()) {
 }
 
 function logLine(entry) {
+  if (entry.t === "pay") {
+    return `${entry.n}. Pay spin ${entry.roll}. Each Payday pays ${money(entry.salary)}.`;
+  }
   if (entry.t === "decision" && entry.choice === "path") {
     const where = state?.mode === "life" ? entry.title : `at ${entry.age}`;
     return `${entry.n}. Path ${entry.value} ${where}. Savings ${money(entry.cash)}.`;
@@ -457,10 +465,7 @@ function renderBoard() {
     track.append(btn);
   }
 
-  const walker = document.createElement("div");
-  walker.className = "climb-walker";
-  walker.innerHTML = walkerMarkup();
-  view.append(track, walker);
+  view.append(track);
   const walking = !snap && scrollMs > 0;
   if (walking) view.classList.add("moving");
   const pace = () => {
@@ -578,7 +583,9 @@ function renderStory() {
     const workLine = stake
       ? `Work makes money right away: no tuition, and you start with ${money(workStart)}.`
       : `Work makes money right away: no tuition, so you keep ${money(workStart)} instead of taking on that debt.`;
-    detailEl.textContent = state.mode
+    detailEl.textContent = state.mode === "life"
+      ? `Savings and pay start at $0. Study costs ${money(debt)} now, and pay stays $0 until the first job. Work skips that bill. Either way, a spin from 1 to 10 sets what every Payday pays: work ${money(figures.workFloor)} to ${money(figures.workPay)}, study ${money(figures.studyFloor)} to ${money(figures.studyPay)}.`
+      : state.mode
       ? `Study costs ${money(debt)} now and pays ${money(studyPay)} a year after 21. ${workLine} Pay starts at ${money(workPay)}. Same number of ${unit} either way. The house, the cards, the investments, and the kids swing the ending.`
       : "";
     showGutCheck(null);
@@ -651,6 +658,10 @@ function renderStory() {
   const waiting = onHere && state.phase === "choice" && here?.choice;
   const settled = onHere && state.lastChoice && here?.choice && state.lastChoice.spaceId === here.id && state.phase !== "choice";
   if (waiting) extra.unshift(choiceLine(here));
+  if (state.phase === "salary") {
+    const band = spec.meta.lifePaySpin[state.path];
+    extra.unshift(`Spin for pay. A 1 pays ${money(band.floor)} every Payday. A 10 pays ${money(band.floor + 9 * band.step)}.`);
+  }
   let lead = card ? "" : space.detail;
   if (!card && isYearMode(state) && space.kind === "payday") {
     const rule = checks?.length ? "" : spec.meta.gutCheck.copy.rule;
@@ -701,7 +712,7 @@ function chanceText(q) {
 }
 
 function annualLine(paid) {
-  const rate = `Annual pay ${money(state.salary)}`;
+  const rate = `Each Payday pays ${money(state.salary)}`;
   if (!paid?.salaryDelta) return rate;
   const sign = paid.salaryDelta > 0 ? "up" : "down";
   return `${rate}, ${sign} ${money(Math.abs(paid.salaryDelta))}`;
@@ -719,7 +730,7 @@ function applyModeChrome() {
   titleHeading.textContent = title;
   ageLabelEl.textContent = mode === "life" ? "Event" : "Age";
   if (!mode) dekEl.textContent = "Life, Life$pan, or Life$pan+.";
-  else if (mode === "life") dekEl.textContent = "Pass or land on Payday and you collect annual pay, even twice in one spin. Other squares change your money only when you land. Retire with the most savings.";
+  else if (mode === "life") dekEl.textContent = "Savings and pay start at zero. Spin 1 through 10 for the amount every Payday pays. That cash flashes, then it lands in savings.";
   else dekEl.textContent = "Each square is one year. A spin is years passed, and every year you enter pays and charges that year.";
   retirementEl.hidden = mode !== "lifespan";
   payLabel.textContent = mode === "life" ? "Payday" : mode === "lifespan-plus" ? "Income" : "Pay";
@@ -803,19 +814,22 @@ function renderStats() {
       expensesEl.className = "";
       expensesEl.textContent = money(portrait.spending);
     }
+    const savingsHit = savingsEl.classList.contains("savings-hit");
     savingsEl.innerHTML = `<span class="num">${money(state.cash)}</span>`;
     savingsEl.className = state.cash < 0 ? "bad" : "good";
+    if (savingsHit) savingsEl.classList.add("savings-hit");
     payEl.className = "";
     if (state.mode === "life") {
       const paid = movePay();
       const annual = annualLine(paid);
-      if (!paid) {
-        payEl.innerHTML = `<span class="num">\u2014</span><span class="borrow-note">${annual}</span>`;
-      } else if (!paid.count) {
-        payEl.innerHTML = `<span class="num">${money(0)}</span><span class="borrow-note">No Payday this move. ${annual}</span>`;
+      const savingsShown = bank.shown == null ? state.cash : bank.shown;
+      savingsEl.innerHTML = `<span class="num">${money(savingsShown)}</span>`;
+      if (bank.flash) {
+        const word = paid?.count === 1 ? "Payday" : "Paydays";
+        const count = paid?.count ? `${paid.count} ${word}. ` : "";
+        payEl.innerHTML = `<span class="num ${bank.drop ? "earn-drop" : "earn-flash"}">${money(bank.flash)}</span><span class="borrow-note">${count}${annual}</span>`;
       } else {
-        const word = paid.count === 1 ? "Payday" : "Paydays";
-        payEl.innerHTML = `<span class="num">${money(paid.cash)}</span><span class="borrow-note">${paid.count} ${word} this move. ${annual}</span>`;
+        payEl.innerHTML = `<span class="num">${money(0)}</span><span class="borrow-note">${annual}</span>`;
       }
     } else {
       payEl.innerHTML = `<span class="num">${money(state.salary)}</span>`;
@@ -938,8 +952,7 @@ function walkerMarkup() {
 function paintFigures() {
   if (!spec || !state) return;
   if (isEntirety(state)) drawFigure(figureRates());
-  const walker = boardEl.querySelector(".climb-walker");
-  if (walker) walker.innerHTML = walkerMarkup();
+  if (runnerEl) runnerEl.innerHTML = walkerMarkup();
 }
 
 function later(ms, fn) {
@@ -1196,7 +1209,13 @@ function renderLog() {
 
 function renderControls() {
   const spun = lastSpin();
-  if (state.phase === "choose") {
+  if (state.phase === "salary") {
+    const band = spec.meta.lifePaySpin[state.path];
+    const high = band.floor + 9 * band.step;
+    actBtn.textContent = "Spin pay";
+    actBtn.disabled = false;
+    readout.textContent = `Spin 1 through 10. Payday will pay ${money(band.floor)} to ${money(high)}.`;
+  } else if (state.phase === "choose") {
     actBtn.textContent = "Spin";
     actBtn.disabled = true;
     if (!state.mode) readout.textContent = "Pick Life, Life$pan, or Life$pan+.";
@@ -1238,6 +1257,67 @@ function renderControls() {
   }
 }
 
+function progressOf() {
+  if (!state?.path || state.index < 0) return 0;
+  const spaces = track(spec, state.path);
+  return state.index / Math.max(1, spaces.length - 1);
+}
+
+function placeRunner() {
+  if (!runnerEl) return;
+  const pct = progressOf();
+  const roll = lastSpin()?.roll || 1;
+  runnerEl.style.transitionDuration = motionOn() ? `${420 + roll * 90}ms` : "0ms";
+  runnerEl.style.left = `${pct * 100}%`;
+  runnerEl.style.transform = `translateX(-${pct * 100}%)`;
+  runnerEl.innerHTML = walkerMarkup();
+}
+
+function sceneKind(space) {
+  const id = space?.id || "";
+  if (id === "room") return "car";
+  if (id === "partnership") return "vows";
+  if (id === "child" || id === "twins") return "baby";
+  if (id === "home" || id === "housewarming") return "house";
+  if (id === "quiet-50") return "roof";
+  if (id === "work-tools") return "laptop";
+  if (id === "bonus" || id === "refund") return "bonus";
+  if (id === "repair" || id === "storm") return "cards";
+  if (id === "study-tuition" || id === "lessons") return "school";
+  if (id === "study-role" || id === "work-job") return "job";
+  if (space?.kind === "payday") return "pay";
+  return "step";
+}
+
+function sceneDraw(kind) {
+  const person = (x, y, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="0" cy="0" r="8"/><path d="M-3 2 h6"/><path d="M0 8 L0 28 M0 16 L-12 24 M0 16 L12 22 M0 28 L-8 42 M0 28 L8 42"/></g>`;
+  if (kind === "car") return `${person(48, 48, 0.8)}<g fill="none" stroke="currentColor" stroke-width="1.6"><path d="M90 78 h90 l14 16 H78 Z"/><path d="M112 78 l10-16 h40 l12 16"/><circle cx="108" cy="94" r="7"/><circle cx="168" cy="94" r="7"/></g>`;
+  if (kind === "vows") return `${person(90, 46)}${person(170, 46)}<circle cx="130" cy="96" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/>`;
+  if (kind === "baby") return `${person(100, 40)}${person(168, 62, 0.55)}`;
+  if (kind === "house") return `<g fill="none" stroke="currentColor" stroke-width="1.6"><path d="M70 70 L140 28 L210 70"/><path d="M84 70 V108 H196 V70"/><path d="M128 108 V82 H152 V108"/></g>`;
+  if (kind === "roof") return `<g fill="none" stroke="currentColor" stroke-width="1.6"><path d="M70 70 L140 28 L210 70"/><path d="M84 70 V108 H196 V70"/><path d="M150 40 l18 16"/></g>`;
+  if (kind === "laptop") return `<g fill="none" stroke="currentColor" stroke-width="1.6"><path d="M78 48 h100 v46 H78 Z"/><path d="M64 100 h140"/><path d="M96 64 h64"/></g>`;
+  if (kind === "bonus") return `<g fill="none" stroke="currentColor" stroke-width="1.6"><path d="M90 40 h80 v48 H90 Z"/><path d="M90 58 h80"/></g>`;
+  if (kind === "cards") return `<g fill="none" stroke="currentColor" stroke-width="1.6"><path d="M96 36 h78 v58 H96 Z"/><path d="M112 50 h78 v58 H112 Z"/></g>`;
+  if (kind === "school") return `<g fill="none" stroke="currentColor" stroke-width="1.6"><path d="M70 62 L140 40 L210 62 L140 84 Z"/><path d="M140 84 V104"/><path d="M104 74 V98 M176 74 V98"/></g>`;
+  if (kind === "job") return `${person(140, 40)}<g fill="none" stroke="currentColor" stroke-width="1.6"><path d="M118 78 h44 v22 H118 Z"/><path d="M132 78 v-8 h16 v8"/></g>`;
+  if (kind === "pay") return `<g fill="none" stroke="currentColor" stroke-width="1.6"><path d="M84 46 h112 v48 H84 Z"/><path d="M84 46 l56 28 56-28"/></g>`;
+  return person(140, 44);
+}
+
+function showScene(space) {
+  if (!sceneEl || !space || !motionOn()) {
+    if (sceneEl) sceneEl.hidden = true;
+    return;
+  }
+  sceneEl.hidden = false;
+  sceneEl.innerHTML = `<svg viewBox="0 0 280 140" aria-hidden="true">${sceneDraw(sceneKind(space))}</svg><p>${space.title}</p>`;
+  clearTimeout(sceneTimer);
+  sceneTimer = setTimeout(() => {
+    sceneEl.hidden = true;
+  }, 1800);
+}
+
 function render() {
   renderShares();
   renderStats();
@@ -1246,10 +1326,19 @@ function render() {
   renderBoard();
   renderLog();
   renderControls();
+  placeRunner();
 }
 
 function takeTurn() {
   if (locked) return;
+  if (state.phase === "salary") {
+    state = spinPay(spec, state);
+    inspect = null;
+    bank = { shown: null, flash: 0, drop: false };
+    render();
+    playBeat("heyday");
+    return;
+  }
   if (state.phase === "ended") {
     stopMotion();
     state = createGame(spec, mintSeed(), { ...CORNERS.center }, null);
@@ -1271,16 +1360,32 @@ function takeTurn() {
   const spun = lastSpin();
   const fresh = spun && !state.death && spun.n > before.log.length ? spun : null;
   const plan = motionOn() && fresh ? movePlan(fresh) : null;
+  const earned = state.mode === "life" && fresh ? fresh.paydayCash || 0 : 0;
   scrollMs = plan ? plan.walkMs : 0;
   locked = motionOn();
+  if (earned && motionOn()) bank = { shown: state.cash - earned, flash: earned, drop: false };
+  else bank = { shown: null, flash: 0, drop: false };
   render();
+  if (state.mode === "life" && fresh) showScene(currentSpace(spec, state));
   if (!speedEl.checked) playBeat(state.death ? "death" : "land");
   if (plan) playMove(before, fresh, plan);
+  if (earned && motionOn()) {
+    setTimeout(() => {
+      bank = { shown: null, flash: earned, drop: true };
+      savingsEl.classList.add("savings-hit");
+      renderStats();
+    }, 2000);
+    setTimeout(() => {
+      bank = { shown: null, flash: 0, drop: false };
+      savingsEl.classList.remove("savings-hit");
+      renderStats();
+    }, 2700);
+  }
   if (locked) {
     setTimeout(() => {
       locked = false;
       renderControls();
-    }, Math.max(720, plan?.total || 0));
+    }, earned && motionOn() ? 2700 : Math.max(720, plan?.total || 0));
   }
 }
 
