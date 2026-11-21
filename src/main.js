@@ -262,6 +262,19 @@ function lastSpin() {
   return null;
 }
 
+function movePay(spun = lastSpin()) {
+  if (!spun) return null;
+  const index = state.log.lastIndexOf(spun);
+  const follow = index >= 0 ? state.log[index + 1] : null;
+  const landed = follow && (follow.t === "resolve" || follow.t === "decision") ? follow : null;
+  return {
+    count: spun.paydayAges?.length || 0,
+    cash: spun.paydayCash || 0,
+    salaryDelta: landed?.salaryDelta || 0,
+    cashDelta: landed?.t === "resolve" ? landed.cashDelta || 0 : 0,
+  };
+}
+
 function logLine(entry) {
   if (entry.t === "decision" && entry.choice === "path") {
     const where = state?.mode === "life" ? entry.title : `at ${entry.age}`;
@@ -274,16 +287,20 @@ function logLine(entry) {
   }
   if (entry.t === "spin") {
     const stop = entry.discarded ? `, stop, ${entry.discarded} unused` : "";
-    const pay = entry.paydayCash ? `, payday ${money(entry.paydayCash)}` : "";
     const reviewed = entry.gutChecks?.length ? `, gut check ${entry.gutChecks.map((item) => item.id).join(", ")}` : "";
-    const year = state?.mode !== "life" && (entry.yearPay || entry.yearBill)
+    if (state?.mode === "life") {
+      const count = entry.paydayAges?.length || 0;
+      const pay = count
+        ? `, ${count} ${count === 1 ? "Payday" : "Paydays"} passed or landed, collected ${money(entry.paydayCash)}`
+        : ", no Payday";
+      return `${entry.n}. Spin ${entry.roll}. ${entry.title}${stop}${pay}. Savings ${money(entry.cash)}. Annual pay ${money(entry.salary)}.`;
+    }
+    const year = entry.yearPay || entry.yearBill
       ? `, paid ${money(entry.yearPay)}, expenses ${money(entry.yearBill)}`
       : "";
-    const span = state?.mode === "life" ? entry.title : `${entry.fromAge} \u2192 ${entry.toAge}`;
-    const passed = state?.mode !== "life" && entry.moved
-      ? `, ${entry.moved} ${entry.moved === 1 ? "year" : "years"} passed`
-      : "";
-    return `${entry.n}. Spin ${entry.roll}. ${span}${passed}${stop}${pay}${reviewed}${year}. Savings ${money(entry.cash)}.`;
+    const word = entry.moved === 1 ? "year" : "years";
+    const passed = Number.isFinite(entry.moved) ? `, ${entry.moved} ${word} passed` : "";
+    return `${entry.n}. Spin ${entry.roll}. ${entry.fromAge} \u2192 ${entry.toAge}${passed}${stop}${reviewed}${year}. Savings ${money(entry.cash)}.`;
   }
   if (entry.t === "resolve") {
     const name = entry.flavor ? entry.flavor.caption : entry.title;
@@ -600,10 +617,24 @@ function renderStory() {
   const extra = [];
   if (!inspect && spun && spun.spaceId === space.id && isYearMode(state) && Number.isFinite(spun.moved)) {
     const word = spun.moved === 1 ? "year" : "years";
-    extra.push(`Age ${spun.toAge}. ${spun.moved} ${word} passed.`);
+    extra.push(`${spun.moved} ${word} passed. You are ${spun.toAge}.`);
   }
-  if (!inspect && spun && spun.spaceId === space.id && state.mode === "life" && spun.paydayCash) {
-    extra.push(`Payday on the way: ${money(spun.paydayCash)}.`);
+  if (!inspect && spun && spun.spaceId === space.id && state.mode === "life") {
+    const paid = movePay(spun);
+    const count = paid.count;
+    const passed = count
+      ? `${count} ${count === 1 ? "Payday" : "Paydays"} passed or landed. Collected ${money(paid.cash)}.`
+      : "No Payday this move.";
+    const bits = [passed];
+    if (paid.cashDelta) {
+      const sign = paid.cashDelta > 0 ? "+" : "\u2212";
+      bits.push(`This square ${sign}${money(Math.abs(paid.cashDelta))}.`);
+    }
+    if (paid.salaryDelta) {
+      const sign = paid.salaryDelta > 0 ? "up" : "down";
+      bits.push(`Annual pay ${sign} ${money(Math.abs(paid.salaryDelta))}.`);
+    }
+    extra.push(bits.join(" "));
   }
   if (!inspect && spun && isYearMode(state) && (spun.yearPay || spun.yearBill)) {
     extra.push(`Paid ${money(spun.yearPay)} and charged ${money(spun.yearBill)}.`);
@@ -669,6 +700,13 @@ function chanceText(q) {
   return `${(q * 100).toFixed(3)}%`;
 }
 
+function annualLine(paid) {
+  const rate = `Annual pay ${money(state.salary)}`;
+  if (!paid?.salaryDelta) return rate;
+  const sign = paid.salaryDelta > 0 ? "up" : "down";
+  return `${rate}, ${sign} ${money(Math.abs(paid.salaryDelta))}`;
+}
+
 function applyModeChrome() {
   const mode = state?.mode || "";
   document.body.classList.toggle("mode-unset", !mode);
@@ -681,10 +719,10 @@ function applyModeChrome() {
   titleHeading.textContent = title;
   ageLabelEl.textContent = mode === "life" ? "Event" : "Age";
   if (!mode) dekEl.textContent = "Life, Life$pan, or Life$pan+.";
-  else if (mode === "life") dekEl.textContent = "Squares are events, not years.";
-  else dekEl.textContent = "Each square is one year. Every year you enter pays and charges that year.";
+  else if (mode === "life") dekEl.textContent = "Pass or land on Payday and you collect annual pay, even twice in one spin. Other squares change your money only when you land. Retire with the most savings.";
+  else dekEl.textContent = "Each square is one year. A spin is years passed, and every year you enter pays and charges that year.";
   retirementEl.hidden = mode !== "lifespan";
-  payLabel.textContent = mode === "lifespan-plus" ? "Income" : "Pay";
+  payLabel.textContent = mode === "life" ? "Payday" : mode === "lifespan-plus" ? "Income" : "Pay";
   cashLabel.textContent = "Savings";
   document.querySelectorAll("[data-mode]").forEach((btn) => {
     btn.setAttribute("aria-pressed", btn.dataset.mode === mode ? "true" : "false");
@@ -692,7 +730,7 @@ function applyModeChrome() {
   });
   const notes = {
     "": "",
-    life: "Squares are events, not years. Paydays stay paydays. A move does not pay or charge every space.",
+    life: "Collect annual pay for every Payday you pass or land on. A spin can cross more than one. Any other square adds or subtracts only if you stop on it.",
     lifespan: "Each square is one year. Every year you enter pays that year's salary and charges 60% of it. Former paydays are Gut Checks.",
     "lifespan-plus": "Same years and Gut Checks. The work axis sets the Gut Check odds. Health and frugality set the copy.",
   };
@@ -768,7 +806,20 @@ function renderStats() {
     savingsEl.innerHTML = `<span class="num">${money(state.cash)}</span>`;
     savingsEl.className = state.cash < 0 ? "bad" : "good";
     payEl.className = "";
-    payEl.innerHTML = `<span class="num">${money(state.salary)}</span>`;
+    if (state.mode === "life") {
+      const paid = movePay();
+      const annual = annualLine(paid);
+      if (!paid) {
+        payEl.innerHTML = `<span class="num">\u2014</span><span class="borrow-note">${annual}</span>`;
+      } else if (!paid.count) {
+        payEl.innerHTML = `<span class="num">${money(0)}</span><span class="borrow-note">No Payday this move. ${annual}</span>`;
+      } else {
+        const word = paid.count === 1 ? "Payday" : "Paydays";
+        payEl.innerHTML = `<span class="num">${money(paid.cash)}</span><span class="borrow-note">${paid.count} ${word} this move. ${annual}</span>`;
+      }
+    } else {
+      payEl.innerHTML = `<span class="num">${money(state.salary)}</span>`;
+    }
     drawWheel(0);
     if (wedgeNote) wedgeNote.textContent = state.mode ? "Spinner 1 through 10." : "";
     figureEl.innerHTML = "";
@@ -1160,11 +1211,23 @@ function renderControls() {
     actBtn.disabled = locked;
     readout.textContent = state.death
       ? `The wedge at ${state.death.age}. The life ends on this square.`
-      : `Working life ends at 68 with savings ${money(state.cash)}.`;
+      : state.mode === "life"
+        ? `Retired. Savings ${money(state.cash)}. Most savings wins.`
+        : `Working life ends at 68 with savings ${money(state.cash)}.`;
   } else {
     actBtn.textContent = "Spin";
     actBtn.disabled = locked;
-    readout.textContent = spun ? `Last spin ${spun.roll}.` : "Spin when you are ready.";
+    if (state.mode === "life" && spun) {
+      const paid = movePay(spun);
+      readout.textContent = paid.count
+        ? `Last spin ${spun.roll}. ${paid.count} ${paid.count === 1 ? "Payday" : "Paydays"}, ${money(paid.cash)}.`
+        : `Last spin ${spun.roll}. No Payday.`;
+    } else if (isYearMode(state) && spun && Number.isFinite(spun.moved)) {
+      const word = spun.moved === 1 ? "year" : "years";
+      readout.textContent = `Last spin ${spun.roll}. ${spun.moved} ${word} passed.`;
+    } else {
+      readout.textContent = spun ? `Last spin ${spun.roll}.` : "Spin when you are ready.";
+    }
   }
   if (state.death && shownSpin !== -1) {
     shownSpin = -1;
