@@ -10,11 +10,15 @@
       10
     ],
     "startingCash": 10000,
+    "lifePaySpin": {
+      "work": { "floor": 40000, "step": 10000 },
+      "study": { "floor": 80000, "step": 10000 }
+    },
     "studySalary": 68000,
     "workSalary": 48000,
     "rules": [
       "Before the path starts, pick Life, Life$pan, or Life$pan+. The choice locks when Study or Work begins.",
-      "Life is the traditional Game of Life. Squares are events, not years. Paydays stay paydays: landing on or passing one adds the current salary once. Spaces you pass do not otherwise fire. A move does not pay or charge expenses on every space. No triangle.",
+      "Life is the traditional Game of Life. Savings and pay start at zero. After Study or Work, a spin from 1 to 10 sets the pay collected on every Payday you pass or land on. Study spins that pay at the first job. Other squares add or subtract only when you land. No triangle.",
       "Life$pan: each square is one year. A spin lives every year it enters, including the years it passes and the year it lands on. Once a salary is set, each entered year adds that year's pay and subtracts that year's living cost: pay times the budget factor, 60% at the center, so 40% is kept. Former paydays are Gut Checks. No triangle. Retirement is named and is not built in this version.",
       "Life$pan+ is the same years, the same settlement, and the same Gut Check as Life$pan, plus the triangle, both mortality tables, the walker, income, expenses, savings, and 4% interest or borrowing once per year lived, after pay minus expenses. This replaces the name Entirety. The work axis sets the Gut Check odds. Health and frugality do not.",
       "On Life$pan+, the spinner shows 1 through 10, plus a death wedge. The wedge is this year's death probability, as a fraction of the circle. Landing in it ends the life on the current square. No numbered move.",
