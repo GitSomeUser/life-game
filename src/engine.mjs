@@ -1,6 +1,6 @@
 /**
  * Accumulation simulation. Reads spec/accumulation.json.
- * Spins, reviews, the operation, and flavor cards use separate streams.
+ * Spins, Gut Checks, the operation, and flavor cards use separate streams.
  * An investment rolls a fresh chance each landing. It is not on those streams.
  * The triangle sets income, the spending rate, and the death blend.
  * Weights are inverse distance to the vertices.
@@ -8,14 +8,15 @@
  * Decumulation is not in this version.
  * Death is on the spin stream, so answers do not move the wedge.
  * Life and Life$pan ignore the triangle, the wedge, and borrowing.
- * Life$pan and Life$pan+ turn former paydays into a review.
+ * Life collects salary on Payday. Life$pan and Life$pan+ settle every year entered,
+ * and their former paydays are Gut Checks that change the pay rate.
  * The climb is ages 18-68 only. There is no downslope.
  */
 
 const KINDS = new Set(["event", "payday", "stop", "choice"]);
 const TONES = new Set(["good", "bad", "neutral"]);
 const GAME_MODES = ["life", "lifespan", "lifespan-plus"];
-const SHARED_REVIEW_IDS = ["temp-bonus", "temp-cut", "promo", "expenses", "stay"];
+const GUT_IDS = ["heyday", "steady", "mayday"];
 
 export function isSpanPlus(state) {
   return state?.mode === "lifespan-plus";
@@ -129,34 +130,24 @@ export function validate(spec) {
       errors.push("perSquare slot must be null until a later pass");
     }
   }
-  const review = spec.meta.review;
-  if (!review) errors.push("missing review");
+  const gut = spec.meta.gutCheck;
+  if (!gut) errors.push("missing gutCheck");
   else {
-    for (const key of ["shift", "tempPay", "permanentPromo", "expenseBump", "promoFloor"]) {
-      if (!Number.isFinite(review[key]) || review[key] <= 0 || review[key] > 1) {
-        errors.push(`review ${key} must be a fraction above 0`);
-      }
+    if (!(gut.floor > 0 && gut.floor <= 1)) errors.push("gutCheck floor must be a fraction above 0");
+    const ids = (gut.results || []).map((row) => row.id);
+    if (ids.join() !== GUT_IDS.join()) errors.push("gutCheck results must be heyday, steady, mayday");
+    for (const row of gut.results || []) {
+      if (!Number.isFinite(row.rate) || Math.abs(row.rate) >= 1) errors.push(`gutCheck ${row.id} rate must be a small fraction`);
+      if (!row.label || !row.line) errors.push(`gutCheck ${row.id} missing text`);
     }
-    const tables = {
-      lifespan: ["big-bonus", "demo", ...SHARED_REVIEW_IDS],
-      "lifespan-plus": ["closer", "away", ...SHARED_REVIEW_IDS],
-    };
-    for (const [mode, ids] of Object.entries(tables)) {
-      const bands = review[mode]?.bands || [];
-      const sum = bands.reduce((total, band) => total + band.count, 0);
-      if (sum !== 100) errors.push(`${mode} review bands sum to ${sum}, expected 100`);
-      const seen = new Set();
-      for (const band of bands) {
-        if (!ids.includes(band.id)) errors.push(`${mode} unknown review ${band.id}`);
-        if (seen.has(band.id)) errors.push(`${mode} duplicate review ${band.id}`);
-        seen.add(band.id);
-        if (band.per !== 100) errors.push(`${mode} ${band.id} odds must be out of 100`);
-        if (!band.label) errors.push(`${mode} ${band.id} missing odds label`);
-      }
-      for (const id of ids) {
-        if (!seen.has(id)) errors.push(`${mode} missing review ${id}`);
-      }
+    const rows = [gut.odds?.lifespan, ...(gut.odds?.["lifespan-plus"] || [])];
+    if (rows.length !== 4 || rows.some((row) => !row)) errors.push("gutCheck odds need Life$pan and three Life$pan+ rows");
+    for (const row of rows.filter(Boolean)) {
+      const sum = GUT_IDS.reduce((total, id) => total + (row[id] || 0), 0);
+      if (Math.abs(sum - 1) > 1e-9) errors.push(`gutCheck odds sum to ${sum}, expected 1`);
     }
+    const axes = (gut.odds?.["lifespan-plus"] || []).map((row) => row.workAxis);
+    if (axes.join() !== "-1,0,1") errors.push("gutCheck Life$pan+ rows must sit at work axis -1, 0, 1");
   }
   if (errors.length) throw new Error(errors.join("\n"));
   return spec;
@@ -338,9 +329,7 @@ export function portraitStats(spec, state) {
   const spending = annual;
   const borrowing = isSpanPlus(state) ? borrowingCharge(state.cash, spec) : 0;
   const interest = isSpanPlus(state) ? savingsInterest(state.cash, spec) : 0;
-  const extra = Math.round(income * (state.expenseLoad || 0));
-  const spendingWithLoad = spending + extra;
-  const bill = spendingWithLoad + borrowing;
+  const bill = spending + borrowing;
   const death = deathProbability(spec, age, rates.axis.h);
   const deathCenter = deathProbability(spec, age, 0);
   const qi = age - spec.meta.ageStart;
@@ -349,7 +338,7 @@ export function portraitStats(spec, state) {
     income,
     monthly,
     annual: bill,
-    spending: spendingWithLoad,
+    spending,
     borrowing,
     interest,
     death,
@@ -452,9 +441,6 @@ export function createGame(spec, seed, point, mode) {
     cash: spec.meta.startingCash,
     salary: 0,
     salaryBase: 0,
-    payMod: 1,
-    expenseLoad: 0,
-    promoted: false,
     startingPay: 0,
     reviewState: (s ^ 0xa5a5f00d) >>> 0,
     expenses: 0,
@@ -518,11 +504,11 @@ function applyEffects(cash, salary, effect, rates, salaryBase = 0, mode = null, 
   return { cash, salary, salaryBase, cashDelta, salaryDelta, salarySet };
 }
 
-function settleYear(spec, cash, expenses, salary, rates, mode, expenseLoad = 0) {
+function settleYear(spec, cash, expenses, salary, rates, mode) {
   const idle = { cash, expenses: expenses || 0, pay: 0, bill: 0, gap: 0, borrow: 0, interest: 0 };
   if (mode !== "lifespan" && mode !== "lifespan-plus") return idle;
   const pay = salary || 0;
-  const bill = annualExpenses(pay, rates, spec) + Math.round(pay * (expenseLoad || 0));
+  const bill = annualExpenses(pay, rates, spec);
   let next = cash + pay - bill;
   let spent = (expenses || 0) + bill;
   let interest = 0;
@@ -644,7 +630,6 @@ export function choosePath(spec, state, pathName) {
     settled.applied.salary,
     rates,
     next.mode,
-    next.expenseLoad || 0,
   );
   next = {
     ...next,
@@ -672,120 +657,61 @@ export function choosePath(spec, state, pathName) {
   };
 }
 
-export function reviewBands(spec, mode) {
-  const table = mode === "lifespan" ? spec.meta.review.lifespan : spec.meta.review["lifespan-plus"];
-  if (!table?.bands) throw new Error("Missing review odds for this mode");
-  return table.bands;
+function lerpOdds(a, b, t) {
+  const row = {};
+  for (const id of GUT_IDS) row[id] = a[id] + (b[id] - a[id]) * t;
+  return row;
 }
 
-export function reviewFromUnit(spec, unit, mode = "lifespan-plus") {
-  const bands = reviewBands(spec, mode);
-  const ticket = Math.floor(unit * 100);
-  if (!Number.isFinite(ticket) || ticket < 0 || ticket > 99) throw new Error("Review draw is out of range");
+export function gutCheckOdds(spec, mode, point) {
+  const odds = spec.meta.gutCheck.odds;
+  if (mode === "lifespan") return { heyday: odds.lifespan.heyday, steady: odds.lifespan.steady, mayday: odds.lifespan.mayday };
+  if (mode !== "lifespan-plus") throw new Error("Gut Check is for Life$pan and Life$pan+");
+  const [low, mid, high] = odds["lifespan-plus"];
+  const w = triangleRates(spec, point ?? centerPoint()).axis.w;
+  return w >= 0 ? lerpOdds(mid, high, w) : lerpOdds(mid, low, -w);
+}
+
+export function gutCheckFromUnit(spec, unit, odds) {
+  if (!Number.isFinite(unit) || unit < 0 || unit >= 1) throw new Error("Gut Check draw is out of range");
+  const results = spec.meta.gutCheck.results;
   let cursor = 0;
-  for (const band of bands) {
-    cursor += band.count;
-    if (ticket < cursor) return band;
+  for (const result of results) {
+    cursor += odds[result.id];
+    if (unit < cursor) return result;
   }
-  return bands[bands.length - 1];
+  return results[results.length - 1];
 }
 
-function shiftWork(point, delta) {
-  const current = parsePoint(point);
-  let w = current.w + delta;
-  if (w < 0) w = 0;
-  if (w > 1) w = 1;
-  const rest = 1 - w;
-  const other = current.h + current.f;
-  if (other <= 1e-12) return { h: rest / 2, w, f: rest / 2 };
-  return {
-    h: rest * (current.h / other),
-    w,
-    f: rest * (current.f / other),
-  };
+export function weakGoal(spec, state) {
+  if (!isSpanPlus(state)) return null;
+  const weights = attributeWeights(state.point);
+  const rows = [["health", weights.h], ["work", weights.w], ["frugality", weights.f]];
+  const high = Math.max(...rows.map((row) => row[1]));
+  const low = Math.min(...rows.map((row) => row[1]));
+  if (high - low <= spec.meta.gutCheck.centerTolerance) return null;
+  return rows.reduce((min, row) => (row[1] < min[1] ? row : min))[0];
 }
 
-function raisePay(salary, salaryBase, rate) {
-  return {
-    salary: Math.round(salary * (1 + rate)),
-    salaryBase: Math.round(salaryBase * (1 + rate)),
-  };
-}
-
-function lowerPay(salary, salaryBase, startingPay, rate, floorRate) {
-  const floor = Math.round((startingPay || 0) * floorRate);
-  let nextSalary = Math.round(salary * (1 - rate));
-  let nextBase = Math.round((salaryBase || 0) * (1 - rate));
+export function applyGutCheck(spec, state, unit) {
+  const odds = gutCheckOdds(spec, state.mode, state.point);
+  const result = gutCheckFromUnit(spec, unit, odds);
+  const before = state.salary || 0;
+  const beforeBase = state.salaryBase || 0;
+  let salary = Math.round(before * (1 + result.rate));
+  let salaryBase = Math.round(beforeBase * (1 + result.rate));
   let held = false;
-  if (startingPay && nextSalary < floor) {
-    held = true;
-    if (salary > 0) nextBase = Math.round((salaryBase || 0) * (floor / salary));
-    else nextBase = floor;
-    nextSalary = floor;
+  const start = state.startingPay || 0;
+  if (start && result.rate < 0) {
+    const floorBase = Math.round(start * spec.meta.gutCheck.floor);
+    const floorPay = Math.round(floorBase * ratesFor(spec, state).income);
+    if (salary < floorPay || salaryBase < floorBase) {
+      held = true;
+      salary = Math.max(salary, Math.min(before, floorPay));
+      salaryBase = Math.max(salaryBase, Math.min(beforeBase, floorBase));
+    }
   }
-  return { salary: nextSalary, salaryBase: nextBase, held };
-}
-
-export function applyReview(spec, state, unit) {
-  const band = reviewFromUnit(spec, unit, state.mode);
-  const table = spec.meta.review;
-  let cash = state.cash;
-  let salary = state.salary || 0;
-  let salaryBase = state.salaryBase || 0;
-  let payMod = state.payMod ?? 1;
-  let point = state.point;
-  let expenseLoad = state.expenseLoad || 0;
-  let promoted = Boolean(state.promoted);
-  const startingPay = state.startingPay || 0;
-  if (!salaryBase && salary && state.mode !== "lifespan-plus") salaryBase = salary;
-  let held = false;
-  let expenseAdded = 0;
-  const beforeCash = cash;
-  const beforeSalary = salary;
-  if (band.id === "closer") {
-    point = shiftWork(point, table.shift);
-  } else if (band.id === "away") {
-    point = shiftWork(point, -table.shift);
-  } else if (band.id === "big-bonus" && salaryBase > 0) {
-    cash += Math.round(beforeSalary * table.tempPay);
-    const raised = raisePay(salary, salaryBase, table.permanentPromo);
-    salary = raised.salary;
-    salaryBase = raised.salaryBase;
-    promoted = true;
-  } else if (band.id === "demo" && salaryBase > 0) {
-    expenseAdded = Math.round(beforeSalary * table.expenseBump);
-    cash -= expenseAdded;
-    const lowered = lowerPay(salary, salaryBase, startingPay, table.permanentPromo, table.promoFloor);
-    salary = lowered.salary;
-    salaryBase = lowered.salaryBase;
-    held = lowered.held;
-  } else if (band.id === "temp-bonus") {
-    cash += Math.round(salary * table.tempPay);
-  } else if (band.id === "temp-cut") {
-    cash -= Math.round(salary * table.tempPay);
-  } else if (band.id === "promo" && salaryBase > 0) {
-    const raised = raisePay(salary, salaryBase, table.permanentPromo);
-    salary = raised.salary;
-    salaryBase = raised.salaryBase;
-    promoted = true;
-  } else if (band.id === "expenses") {
-    expenseLoad += table.expenseBump;
-    expenseAdded = Math.round(beforeSalary * table.expenseBump);
-  }
-  return {
-    cash,
-    salary,
-    salaryBase,
-    payMod,
-    point,
-    expenseLoad,
-    promoted,
-    startingPay,
-    held,
-    band,
-    expenseAdded,
-    cashDelta: cash - beforeCash,
-  };
+  return { result, odds, salary, salaryBase, held, weak: weakGoal(spec, state) };
 }
 
 export function applyRoll(spec, state, roll) {
@@ -812,13 +738,10 @@ export function applyRoll(spec, state, roll) {
   let cashDelta = 0;
   let salaryDelta = 0;
   let living = 0;
-  let point = state.point;
-  let payMod = state.payMod ?? 1;
-  let expenseLoad = state.expenseLoad || 0;
   let reviewState = state.reviewState;
-  let promoted = Boolean(state.promoted);
   let startingPay = state.startingPay || 0;
-  const reviews = [];
+  const gutChecks = [];
+  const years = [];
   const paydayAges = [];
   let paydayCash = 0;
   let yearPay = 0;
@@ -830,10 +753,6 @@ export function applyRoll(spec, state, roll) {
     cash,
     salary,
     salaryBase,
-    point,
-    payMod,
-    expenseLoad,
-    promoted,
     startingPay,
     flavorState,
   });
@@ -846,30 +765,6 @@ export function applyRoll(spec, state, roll) {
       if (!isYearMode(state)) {
         cash += salary;
         paydayCash += salary;
-      } else {
-        const drawn = nextUnit(reviewState);
-        reviewState = drawn.state;
-        const beforeSalary = salary;
-        const applied = applyReview(spec, view(), drawn.unit);
-        cash = applied.cash;
-        salary = applied.salary;
-        salaryBase = applied.salaryBase;
-        point = applied.point;
-        payMod = applied.payMod;
-        expenseLoad = applied.expenseLoad;
-        promoted = applied.promoted;
-        reviews.push({
-          age: space.age,
-          spaceId: space.id,
-          id: applied.band.id,
-          label: applied.band.label,
-          cashDelta: applied.cashDelta,
-          expenseAdded: applied.expenseAdded,
-          salaryBefore: beforeSalary,
-          salaryAfter: applied.salary,
-          payMod: applied.payMod,
-          held: applied.held,
-        });
       }
     }
     if (landing && space.kind !== "choice" && space.kind !== "payday") {
@@ -891,12 +786,35 @@ export function applyRoll(spec, state, roll) {
       expenses += cards.paid;
       cardPaid += cards.paid;
     }
-    const year = settleYear(spec, cash, expenses, salary, ratesFor(spec, view()), state.mode, expenseLoad);
+    const year = settleYear(spec, cash, expenses, salary, ratesFor(spec, view()), state.mode);
     cash = year.cash;
     expenses = year.expenses;
     living += year.gap;
     yearPay += year.pay;
     yearBill += year.bill;
+    if (space.kind === "payday" && isYearMode(state)) {
+      const drawn = nextUnit(reviewState);
+      reviewState = drawn.state;
+      const before = salary;
+      const checked = applyGutCheck(spec, view(), drawn.unit);
+      salary = checked.salary;
+      salaryBase = checked.salaryBase;
+      gutChecks.push({
+        age: space.age,
+        spaceId: space.id,
+        id: checked.result.id,
+        label: checked.result.label,
+        landed: landing,
+        odds: checked.odds,
+        weak: checked.weak,
+        salaryBefore: before,
+        salaryAfter: salary,
+        held: checked.held,
+      });
+    }
+    if (isYearMode(state)) {
+      years.push({ age: space.age, pay: year.pay, bill: year.bill, interest: year.interest, borrow: year.borrow, cash, salary });
+    }
   }
   const landed = spaces[i];
   let next = {
@@ -907,11 +825,7 @@ export function applyRoll(spec, state, roll) {
     salaryBase,
     expenses,
     flavorState,
-    point,
-    payMod,
-    expenseLoad,
     reviewState,
-    promoted,
     startingPay,
     cardBalance,
     lastChoice: null,
@@ -931,9 +845,10 @@ export function applyRoll(spec, state, roll) {
       paydayCash,
       yearPay,
       yearBill,
+      years,
       cardPaid,
       cardBalance,
-      reviews,
+      gutChecks,
       livingGap: living,
       cash,
       salary,
