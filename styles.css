@@ -778,13 +778,32 @@ h2 {
 .climb-route { color: rgba(243, 240, 232, 0.55); }
 .climb-route path { fill: none; stroke: currentColor; stroke-width: 1.4; }
 .climb-route path.off { opacity: 0.28; }
+.climb-route { animation: route-shimmer 4s ease-in-out infinite; }
+.climb-view.moving .climb-route,
+.climb-view.snap .climb-route { animation: none; }
+
+@keyframes route-shimmer {
+  0%, 100% { color: rgba(243, 240, 232, 0.55); }
+  50% { color: rgba(243, 240, 232, 0.9); }
+}
+
+.stats dd.pulse-good .num { animation: pulse-good 500ms ease-out; }
+.stats dd.pulse-bad .num { animation: pulse-bad 500ms ease-out; }
+
+@keyframes pulse-good {
+  35% { color: #2f9e62; text-shadow: 0 0 10px rgba(47, 158, 98, 0.55); }
+}
+
+@keyframes pulse-bad {
+  35% { color: #d64545; text-shadow: 0 0 10px rgba(214, 69, 69, 0.55); }
+}
 
 .climb-walker {
   position: absolute;
   left: 50%;
   bottom: 8px;
-  width: 54px;
-  height: 64px;
+  width: 62px;
+  height: 66px;
   transform: translateX(-50%);
   color: var(--ink);
   pointer-events: none;
@@ -1043,7 +1062,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, .space:focus-visible
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #wheel .needle, .climb-track { transition: none; }
+  #wheel .needle, .climb-track { transition: none !important; }
+  .climb-route, .stats dd .num { animation: none !important; }
 }
 
 .climb .space {
