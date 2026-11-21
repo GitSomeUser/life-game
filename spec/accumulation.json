@@ -1,7 +1,7 @@
 {
   "meta": {
     "stage": 2,
-    "version": "0.10.5",
+    "version": "0.11.0",
     "ageStart": 18,
     "ageEnd": 68,
     "yearsPerSpace": 1,
@@ -14,24 +14,24 @@
     "workSalary": 48000,
     "rules": [
       "Before the path starts, pick Life, Life$pan, or Life$pan+. The choice locks when Study or Work begins.",
-      "Life is the traditional Game of Life. Squares are events, not years. Paydays stay paydays. A move does not pay or charge expenses on every space. No triangle.",
-      "Life$pan: each square is one year. Moving one space pays that year's salary and charges that year's expenses. Former paydays are named Promo?. No triangle. Retirement is named and is not built in this version.",
-      "Life$pan+ is the same years, the same per-space pay and expenses, and the same Promo? tile as Life$pan, plus the triangle, both mortality tables, the walker, income, expenses, savings, and 4% interest or borrowing. This replaces the name Entirety. Its two 1-in-10 spins move the triangle and do not change pay.",
+      "Life is the traditional Game of Life. Squares are events, not years. Paydays stay paydays: landing on or passing one adds the current salary once. Spaces you pass do not otherwise fire. A move does not pay or charge expenses on every space. No triangle.",
+      "Life$pan: each square is one year. A spin lives every year it enters, including the years it passes and the year it lands on. Once a salary is set, each entered year adds that year's pay and subtracts that year's living cost: pay times the budget factor, 60% at the center, so 40% is kept. Former paydays are Gut Checks. No triangle. Retirement is named and is not built in this version.",
+      "Life$pan+ is the same years, the same settlement, and the same Gut Check as Life$pan, plus the triangle, both mortality tables, the walker, income, expenses, savings, and 4% interest or borrowing once per year lived, after pay minus expenses. This replaces the name Entirety. The work axis sets the Gut Check odds. Health and frugality do not.",
       "On Life$pan+, the spinner shows 1 through 10, plus a death wedge. The wedge is this year's death probability, as a fraction of the circle. Landing in it ends the life on the current square. No numbered move.",
-      "You resolve the space you land on. Spaces you pass do not fire, except Payday on Life, and except a review on Life$pan and Life$pan+. On Life$pan and Life$pan+, every space you move into still pays that year's salary and charges that year's expenses.",
+      "You resolve the space you land on. Spaces you pass do not fire, except Payday on Life and Gut Check on Life$pan and Life$pan+. On Life$pan and Life$pan+, every year you enter also settles pay minus living cost. Years you never reach do not pay and do not charge.",
       "On Life, Payday adds your current salary when you land on it or pass it. Other spaces do not pay salary or charge living expenses.",
-      "On Life$pan and Life$pan+, landing on or passing a former payday runs one Promo? outcome from meta.review, then that year pays and charges like any other space. The card shows the odds for the active mode.",
-      "A later demotion cannot drop pay below 80% of starting pay. A temporary pay change, and a temporary expense increase, are this year only.",
+      "On Life$pan and Life$pan+, a former payday is a Gut Check. It fires on land or pass and is not a stop. The year settles first, then the check changes the pay rate for later years: Heyday \u00d71.04, Steady no change, Mayday \u00d70.96. It never pays a salary. The odds are in meta.gutCheck.",
+      "A Mayday cannot drop pay below 80% of the path's starting salary. Story raises (early raise, promotion, pay bump, recognition, and the choice raises) still pay only on a landing.",
       "A stop ends the move even if steps remain. Then you spin again.",
       "Ages 18 to 21 are a fork. The choice is Study, or make money right away. Study pays tuition up front and a higher salary after 21. Work skips that debt and starts with cash. That is true on Life, and on Life$pan and Life$pan+. Each path has four spaces, then one shared track from 22 to 68. The house, the cards, the investments, and the kids swing the ending. On Life those squares are not years. On Life$pan and Life$pan+ each square is one year.",
       "At 68 the working track ends. The climb has no downslope. Decumulation is not in this version. On Life$pan+, positive savings earn 4% a year and negative savings pay the 4% borrowing charge. Life and Life$pan do neither. Retirement spaces are not in this version.",
-      "One point in the triangle sets health, work, and frugality. Weights are inverse distance to the vertices, so an edge does not freeze the far one. It locks when the path starts. Reviews on Life$pan+ may nudge it later. The center is still one third.",
+      "One point in the triangle sets health, work, and frugality. Weights are inverse distance to the vertices, so an edge does not freeze the far one. It locks when the path starts and does not move after. The center is still one third.",
       "A click on Life, Life$pan, or Life$pan+ starts a new game. Resume loads the name you typed. An empty name does nothing. Every decision uses that same treatment: waiting options vibrate between bold and dim, the picked one stays steady and bold, and the others stay dim. That includes Study or Work, a yes or no, and any other choice. Credit-card debt stacks on every space you move through, and the due square collects the balance even when you only pass it."
     ],
     "modes": {
       "life": "Traditional Game of Life. Squares are events. Squares are not years. Paydays stay paydays. A move does not pay or charge every space. No triangle.",
-      "lifespan": "Each square is one year. Moving one space pays that year's salary and charges that year's expenses. Former paydays are named Promo?. No triangle.",
-      "lifespan-plus": "Same years, the same per-space pay and expenses, and the same Promo? tile as Life$pan, plus the triangle, both mortality tables, the walker, income, expenses, savings, and 4% interest or borrowing. The two 1-in-10 spins move the triangle and do not change pay."
+      "lifespan": "Each square is one year. Every year you enter pays that year's salary and charges that year's living cost. Former paydays are Gut Checks that change the pay rate. No triangle.",
+      "lifespan-plus": "Same years, the same settlement, and the same Gut Check as Life$pan, plus the triangle, both mortality tables, the walker, income, expenses, savings, and 4% interest or borrowing. The work axis sets the Gut Check odds."
     },
     "home": "downPayment",
     "sources": [
@@ -50,108 +50,73 @@
       "healthCostShare": 0.25,
       "healthCostAbove": 0.5,
       "healthCostBelow": 0.2,
-      "note": "Weights are inverse distance to the vertices. Income and the spending rate still follow axis() against one third. Health-related costs are one quarter of the spending budget. Total annual expenses = income \u00d7 spend rate \u00d7 (0.75 + 0.25 \u00d7 health-cost multiplier). On Life$pan and Life$pan+, each space pays that year's salary and charges that year's full expenses. Life does not. When savings are negative after that, Life$pan+ also charges borrowing at 4% of the amount below zero. When savings are positive, Life$pan+ adds 4% interest for the year. Salary follows the income multiplier.",
+      "note": "Weights are inverse distance to the vertices. Income and the spending rate still follow axis() against one third. Health-related costs are one quarter of the spending budget. Total annual expenses = income \u00d7 spend rate \u00d7 (0.75 + 0.25 \u00d7 health-cost multiplier). On Life$pan and Life$pan+, each year you enter, once a salary is set, pays that year's salary and charges that year's full expenses. Years before a salary settle neither. Life does not settle years. After pay minus expenses, Life$pan+ adds 4% interest on positive savings or charges 4% borrowing on the amount below zero, once per year lived. Salary follows the income multiplier.",
       "borrowingRate": 0.04,
       "interestRate": 0.04
     },
-    "review": {
-      "note": "Life$pan and Life$pan+ only, when you land on or pass a former payday named Promo?. Life paydays stay paydays. One draw, one outcome. The draw uses its own stream, so the spinner does not move. The two 1-in-10 slots differ by mode. The other five are shared.",
-      "shift": 0.05,
-      "tempPay": 0.1,
-      "permanentPromo": 0.1,
-      "expenseBump": 0.05,
-      "promoFloor": 0.8,
-      "lifespan": {
-        "bands": [
+    "gutCheck": {
+      "title": "Gut Check",
+      "note": "Life$pan and Life$pan+ only, on the eleven former paydays. Life reads the same tiles as Payday. It fires on land or pass and is not a stop. The year has already settled, so it pays nothing. It changes the pay rate for the years after it. One draw per check, on its own stream, so the spinner does not move. Life$pan odds are fixed. Life$pan+ odds follow the work axis only, interpolated between the three rows. Health and frugality change the copy on the card, not the odds or the step.",
+      "floor": 0.8,
+      "results": [
+        {
+          "id": "heyday",
+          "label": "Heyday",
+          "rate": 0.04,
+          "line": "Pay levels up 4%."
+        },
+        {
+          "id": "steady",
+          "label": "Steady",
+          "rate": 0,
+          "line": "Pay holds."
+        },
+        {
+          "id": "mayday",
+          "label": "Mayday",
+          "rate": -0.04,
+          "line": "Pay levels down 4%."
+        }
+      ],
+      "odds": {
+        "lifespan": {
+          "heyday": 0.5,
+          "steady": 0.35,
+          "mayday": 0.15
+        },
+        "lifespan-plus": [
           {
-            "id": "big-bonus",
-            "count": 10,
-            "per": 100,
-            "label": "1 in 10. A temporary pay bonus and a permanent pay increase."
+            "workAxis": -1,
+            "heyday": 0.15,
+            "steady": 0.45,
+            "mayday": 0.4
           },
           {
-            "id": "demo",
-            "count": 10,
-            "per": 100,
-            "label": "1 in 10. A temporary expense increase and a permanent pay decrease."
+            "workAxis": 0,
+            "heyday": 0.4,
+            "steady": 0.45,
+            "mayday": 0.15
           },
           {
-            "id": "temp-bonus",
-            "count": 20,
-            "per": 100,
-            "label": "2 in 10. A temporary pay bonus, this year only."
-          },
-          {
-            "id": "temp-cut",
-            "count": 20,
-            "per": 100,
-            "label": "2 in 10. A temporary pay cut, this year only."
-          },
-          {
-            "id": "promo",
-            "count": 20,
-            "per": 100,
-            "label": "2 in 10. A permanent pay promotion."
-          },
-          {
-            "id": "expenses",
-            "count": 2,
-            "per": 100,
-            "label": "2 in 100. Expenses increase."
-          },
-          {
-            "id": "stay",
-            "count": 18,
-            "per": 100,
-            "label": "The rest. Stay the same."
+            "workAxis": 1,
+            "heyday": 0.7,
+            "steady": 0.25,
+            "mayday": 0.05
           }
         ]
       },
-      "lifespan-plus": {
-        "bands": [
-          {
-            "id": "closer",
-            "count": 10,
-            "per": 100,
-            "label": "1 in 10. Move the triangle point slightly closer to the goal."
-          },
-          {
-            "id": "away",
-            "count": 10,
-            "per": 100,
-            "label": "1 in 10. Move the triangle point slightly away from the goal."
-          },
-          {
-            "id": "temp-bonus",
-            "count": 20,
-            "per": 100,
-            "label": "2 in 10. A temporary pay bonus, this year only."
-          },
-          {
-            "id": "temp-cut",
-            "count": 20,
-            "per": 100,
-            "label": "2 in 10. A temporary pay cut, this year only."
-          },
-          {
-            "id": "promo",
-            "count": 20,
-            "per": 100,
-            "label": "2 in 10. A permanent pay promotion."
-          },
-          {
-            "id": "expenses",
-            "count": 2,
-            "per": 100,
-            "label": "2 in 100. Expenses increase."
-          },
-          {
-            "id": "stay",
-            "count": 18,
-            "per": 100,
-            "label": "The rest. Stay the same."
-          }
-        ]
+      "centerTolerance": 0.02,
+      "copy": {
+        "review": "Review.",
+        "work": "The review is about the job.",
+        "health": "The review asks whether the body will still be there for the next one.",
+        "frugality": "The raise, if it comes, is already spoken for.",
+        "floor": "Held at the floor, 80% of starting pay.",
+        "pass": "Gut Check passed at {age}: {label}.",
+        "rule": "The year already settled. A Gut Check changes pay for the years after it."
+      },
+      "spaceCopy": {
+        "work-payday": "Probation review. Work only."
       }
     },
     "cardRate": 0.15,
@@ -161,8 +126,8 @@
       "lifespan-plus": 90000
     },
     "spendAdjust": {
-      "lifespan": -0.2,
-      "lifespan-plus": 0.02
+      "lifespan": 0,
+      "lifespan-plus": 0
     },
     "cashScale": {
       "lifespan": {
