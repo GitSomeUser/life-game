@@ -9,6 +9,7 @@ import {
   openingFigures,
   currentSpace,
   deathProbability,
+  gutCheckOdds,
   isEntirety,
   isYearMode,
   portraitStats,
@@ -247,6 +248,7 @@ function gameName() {
 
 function startPath(pathName) {
   if (!gameName() || !state?.mode) return;
+  stopMotion();
   state = choosePath(spec, createGame(spec, state.seed, state.point, state.mode), pathName);
   pointLocked = true;
   inspect = null;
@@ -273,7 +275,7 @@ function logLine(entry) {
   if (entry.t === "spin") {
     const stop = entry.discarded ? `, stop, ${entry.discarded} unused` : "";
     const pay = entry.paydayCash ? `, payday ${money(entry.paydayCash)}` : "";
-    const reviewed = entry.reviews?.length ? `, promo ${entry.reviews.map((item) => item.id).join(", ")}` : "";
+    const reviewed = entry.gutChecks?.length ? `, gut check ${entry.gutChecks.map((item) => item.id).join(", ")}` : "";
     const year = state?.mode !== "life" && (entry.yearPay || entry.yearBill)
       ? `, paid ${money(entry.yearPay)}, expenses ${money(entry.yearBill)}`
       : "";
@@ -298,7 +300,7 @@ function spaceMark(space) {
 }
 
 function spaceName(space) {
-  if (isYearMode(state) && space.kind === "payday") return "Promo?";
+  if (isYearMode(state) && space.kind === "payday") return spec.meta.gutCheck.title;
   return space.title;
 }
 
@@ -440,8 +442,15 @@ function renderBoard() {
 
   const walker = document.createElement("div");
   walker.className = "climb-walker";
-  walker.innerHTML = `<svg viewBox="0 0 64 72" aria-hidden="true"><circle cx="30" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M30 18 L26 36 L14 62 M26 36 L40 58 M22 28 L44 34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  walker.innerHTML = walkerMarkup();
   view.append(track, walker);
+  const walking = !snap && scrollMs > 0;
+  if (walking) view.classList.add("moving");
+  const pace = () => {
+    if (!walking) return;
+    track.style.transitionDuration = `${scrollMs}ms`;
+    track.style.transitionTimingFunction = "linear";
+  };
   boardEl.className = "climb";
   boardEl.replaceChildren(view);
   const apply = () => {
@@ -452,6 +461,7 @@ function renderBoard() {
     track.style.transform = `translateY(${climbShift}px)`;
     requestAnimationFrame(() => {
       track.style.transition = "";
+      pace();
       apply();
     });
   } else {
@@ -490,42 +500,46 @@ function showFlavor(card) {
   flavorCaptionEl.textContent = moodLine[card.mood] || card.mood;
 }
 
-function reviewSentence(review) {
-  const pay = money(review.salaryAfter);
-  if (review.id === "closer") return `The triangle moves slightly closer to the goal. Pay stays ${pay}.`;
-  if (review.id === "away") return `The triangle moves slightly away from the goal. Pay stays ${pay}.`;
-  if (review.id === "big-bonus") {
-    return `Temporary pay bonus ${money(review.cashDelta)}, this year only, and a permanent pay increase. Pay is ${pay}.`;
-  }
-  if (review.id === "demo") {
-    const held = review.held ? " The demotion stops at 80% of starting pay." : "";
-    return `Temporary expense increase ${money(review.expenseAdded)}, this year only, and a permanent pay decrease. Pay is ${pay}.${held}`;
-  }
-  if (review.id === "temp-bonus") return `Temporary pay bonus, this year only: ${money(review.cashDelta)}.`;
-  if (review.id === "temp-cut") return `Temporary pay cut, this year only: ${money(review.cashDelta)}.`;
-  if (review.id === "promo") return `Permanent pay promotion. Pay is ${pay}. A later demotion cannot go below 80% of starting pay.`;
-  if (review.id === "expenses") return `Expenses increase by ${money(review.expenseAdded)} this year, and the increase stays.`;
-  return "Stay the same.";
+function gutResult(check) {
+  return spec.meta.gutCheck.results.find((row) => row.id === check.id);
 }
 
-function showReview(reviews) {
-  if (!reviews?.length) {
+function gutSentence(check) {
+  const copy = spec.meta.gutCheck.copy;
+  const result = gutResult(check);
+  const held = check.held ? ` ${copy.floor}` : "";
+  return `${result.label}. ${result.line} Pay is ${money(check.salaryAfter)}.${held}`;
+}
+
+function showGutCheck(checks) {
+  if (!checks?.length) {
     reviewCardEl.hidden = true;
     reviewOddsEl.replaceChildren();
     reviewResultEl.textContent = "";
     reviewRuleEl.textContent = "";
     return;
   }
+  const gut = spec.meta.gutCheck;
   reviewCardEl.hidden = false;
   reviewOddsEl.replaceChildren();
-  const bands = spec.meta.review[state.mode]?.bands || [];
-  for (const band of bands) {
+  const odds = gutCheckOdds(spec, state.mode, state.point);
+  for (const result of gut.results) {
     const li = document.createElement("li");
-    li.textContent = band.label;
+    li.textContent = `${result.label} ${Math.round(odds[result.id] * 100)}%`;
     reviewOddsEl.append(li);
   }
-  reviewResultEl.textContent = reviews.map((review) => `Age ${review.age}: ${reviewSentence(review)}`).join(" ");
-  reviewRuleEl.textContent = "A later demotion cannot drop pay below 80% of starting pay. Temporary means this year only.";
+  const lines = [];
+  for (const check of checks) {
+    if (check.landed) {
+      const lead = check.weak ? gut.copy[check.weak] : gut.copy.review;
+      lines.push(`${lead} ${gutSentence(check)}`);
+    } else {
+      const passed = gut.copy.pass.replace("{age}", check.age).replace("{label}", gutResult(check).label);
+      lines.push(`${passed} Pay ${money(check.salaryAfter)}.${check.held ? ` ${gut.copy.floor}` : ""}`);
+    }
+  }
+  reviewResultEl.textContent = lines.join(" ");
+  reviewRuleEl.textContent = gut.copy.rule;
   reviewCardEl.scrollIntoView({ block: "nearest" });
 }
 
@@ -550,13 +564,13 @@ function renderStory() {
     detailEl.textContent = state.mode
       ? `Study costs ${money(debt)} now and pays ${money(studyPay)} a year after 21. ${workLine} Pay starts at ${money(workPay)}. Same number of ${unit} either way. The house, the cards, the investments, and the kids swing the ending.`
       : "";
-    showReview(null);
+    showGutCheck(null);
     return;
   }
   const spun = lastSpin();
   const bits = [state.mode === "life" ? "Event" : `Age ${space.age}`];
   if (space.kind === "stop") bits.push("stop");
-  if (space.kind === "payday") bits.push(isYearMode(state) ? "promo?" : "payday");
+  if (space.kind === "payday") bits.push(isYearMode(state) ? "gut check" : "payday");
   if (space.kind === "choice") bits.push("choice");
   if (inspect && (!currentSpace(spec, state) || inspect.id !== currentSpace(spec, state).id)) bits.push("on the board");
   const card = flavorSeen(space);
@@ -577,11 +591,8 @@ function renderStory() {
   }
   if (!inspect && spun?.cardPaid) extra.push(`The cards come due: ${money(spun.cardPaid)}.`);
   if (!inspect && state.cardBalance > 0) extra.push(`Card balance ${money(state.cardBalance)}. It stacks each space.`);
-  const reviews = !inspect && spun && spun.spaceId === space.id ? spun.reviews : null;
-  showReview(reviews);
-  if (reviews?.length && (spun.yearPay || spun.yearBill)) {
-    reviewResultEl.textContent += ` Paid ${money(spun.yearPay)} and charged ${money(spun.yearBill)}.`;
-  }
+  const checks = !inspect && spun && spun.spaceId === space.id ? spun.gutChecks : null;
+  showGutCheck(checks);
   if (!inspect && spun && spun.spaceId === space.id && spun.discarded) {
     extra.push(`The move stopped here. ${spun.discarded} steps unused.`);
   }
@@ -591,7 +602,10 @@ function renderStory() {
   const settled = onHere && state.lastChoice && here?.choice && state.lastChoice.spaceId === here.id && state.phase !== "choice";
   if (waiting) extra.unshift(choiceLine(here));
   let lead = card ? "" : space.detail;
-  if (!card && isYearMode(state) && space.kind === "payday") lead = "Promo? The odds for this mode are on the card.";
+  if (!card && isYearMode(state) && space.kind === "payday") {
+    const rule = checks?.length ? "" : spec.meta.gutCheck.copy.rule;
+    lead = [spec.meta.gutCheck.spaceCopy?.[space.id], rule].filter(Boolean).join(" ");
+  }
   detailEl.textContent = [lead, ...extra].filter(Boolean).join(" ");
 
   if (waiting || settled) {
@@ -649,7 +663,7 @@ function applyModeChrome() {
   ageLabelEl.textContent = mode === "life" ? "Event" : "Age";
   if (!mode) dekEl.textContent = "Life, Life$pan, or Life$pan+.";
   else if (mode === "life") dekEl.textContent = "Squares are events, not years.";
-  else dekEl.textContent = "Each square is one year. A move pays that year and charges its expenses.";
+  else dekEl.textContent = "Each square is one year. Every year you enter pays and charges that year.";
   retirementEl.hidden = mode !== "lifespan";
   payLabel.textContent = mode === "lifespan-plus" ? "Income" : "Pay";
   cashLabel.textContent = "Savings";
@@ -660,8 +674,8 @@ function applyModeChrome() {
   const notes = {
     "": "",
     life: "Squares are events, not years. Paydays stay paydays. A move does not pay or charge every space.",
-    lifespan: "Each square is one year. Moving one space pays that year's salary and charges that year's expenses. Promo? stays on former paydays.",
-    "lifespan-plus": "Same Promo? tile, except the two 1-in-10 spins move the triangle and do not change pay.",
+    lifespan: "Each square is one year. Every year you enter pays that year's salary and charges 60% of it. Former paydays are Gut Checks.",
+    "lifespan-plus": "Same years and Gut Checks. The work axis sets the Gut Check odds. Health and frugality set the copy.",
   };
   modeNote.textContent = notes[mode] || "";
   if (!state.path) {
@@ -698,7 +712,13 @@ function playBeat(kind = "land") {
   audioCtx = audioCtx || new Ctx();
   if (audioCtx.state === "suspended") audioCtx.resume();
   const t = audioCtx.currentTime;
-  const notes = kind === "death" ? [294, 220] : [196, 247, 294];
+  const tones = {
+    death: [294, 220],
+    heyday: [247, 330],
+    steady: [262],
+    mayday: [330, 247],
+  };
+  const notes = tones[kind] || [196, 247, 294];
   notes.forEach((freq, i) => {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -720,16 +740,16 @@ function renderStats() {
   const age = space ? space.age : spec.meta.ageStart;
   if (state.mode === "life") ageEl.textContent = "\u2014";
   else ageEl.textContent = space ? String(space.age) : "18";
-    if (!isEntirety(state)) {
+  if (!isEntirety(state)) {
     if (state.mode === "lifespan") {
       const portrait = portraitStats(spec, state);
       expensesEl.className = "";
       expensesEl.textContent = money(portrait.spending);
     }
-    savingsEl.textContent = money(state.cash);
+    savingsEl.innerHTML = `<span class="num">${money(state.cash)}</span>`;
     savingsEl.className = state.cash < 0 ? "bad" : "good";
     payEl.className = "";
-    payEl.textContent = money(state.salary);
+    payEl.innerHTML = `<span class="num">${money(state.salary)}</span>`;
     drawWheel(0);
     if (wedgeNote) wedgeNote.textContent = state.mode ? "Spinner 1 through 10." : "";
     figureEl.innerHTML = "";
@@ -738,10 +758,10 @@ function renderStats() {
   }
   const portrait = portraitStats(spec, state);
   const interestNote = portrait.interest > 0 ? `<span class="borrow-note">earns 4% a year</span>` : "";
-  savingsEl.innerHTML = `${money(state.cash)}${interestNote}`;
+  savingsEl.innerHTML = `<span class="num">${money(state.cash)}</span>${interestNote}`;
   savingsEl.className = state.cash < 0 ? "bad" : "good";
   payEl.className = portrait.income < 0 ? "bad" : "good";
-  payEl.innerHTML = `${money(portrait.income)}${deltaMark("income", portrait.incomeDelta)}`;
+  payEl.innerHTML = `<span class="num">${money(portrait.income)}</span>${deltaMark("income", portrait.incomeDelta)}`;
   const borrowNote = portrait.borrowing > 0 ? `<span class="borrow-note">includes 4% borrowing</span>` : "";
   expensesEl.className = "bad";
   expensesEl.innerHTML = `${money(portrait.annual)}${deltaMark("expense", portrait.expenseDelta)}${borrowNote}`;
@@ -756,11 +776,13 @@ function renderStats() {
   renderDeath();
 }
 
-function drawFigure(rates) {
-  const slouch = (1 - rates.axis.h) / 2;
+const fixed = (n) => +n.toFixed(1);
+
+function figureMarkup(rates, { pose = "contact", lead = 0, mouth = "flat", accent = 0 } = {}) {
+  const slouch = Math.min(1, Math.max(0, (1 - rates.axis.h) / 2 + accent));
   const focus = (rates.axis.w + 1) / 2;
   const spend = Math.max(0, -rates.axis.f);
-  const mix = (upright, slumped) => +(upright + (slumped - upright) * slouch).toFixed(1);
+  const mix = (upright, slumped) => fixed(upright + (slumped - upright) * slouch);
   const headX = mix(102, 126);
   const headY = mix(24, 46);
   const hipX = mix(90, 76);
@@ -769,50 +791,161 @@ function drawFigure(rates) {
   const bowY = mix(50, 72);
   const shoulderX = mix(98, 116);
   const shoulderY = mix(46, 60);
-  const backHandX = mix(66, 50);
-  const backHandY = mix(64, 76);
-  const handX = mix(122, 136);
-  const handY = mix(60, 80);
-  const backKneeX = mix(72, 58);
-  const backKneeY = mix(96, 100);
-  const backFootX = mix(56, 46);
-  const backFootY = mix(116, 114);
-  const kneeX = mix(112, 122);
-  const kneeY = mix(96, 102);
-  const frontFootX = mix(128, 138);
-  const frontFootY = mix(116, 110);
+  const kneeY = mix(96, 100);
+  const footY = mix(116, 114);
+  const stride = {
+    front: { knee: [mix(112, 122), mix(96, 102)], foot: [mix(128, 138), mix(116, 110)] },
+    back: { knee: [mix(72, 58), kneeY], foot: [mix(56, 46), footY] },
+  };
+  const passing = {
+    front: { knee: [fixed(hipX + 12), fixed(kneeY - 4)], foot: [fixed(hipX + 4), fixed(footY - 8)] },
+    back: { knee: [fixed(hipX + 3), kneeY], foot: [fixed(hipX + 1), footY] },
+  };
+  const legs = pose === "passing" ? passing : stride;
+  const arms = pose === "passing"
+    ? { front: [fixed(shoulderX + 5), fixed(shoulderY + 26)], back: [fixed(shoulderX - 6), fixed(shoulderY + 26)] }
+    : { front: [mix(122, 136), mix(60, 80)], back: [mix(66, 50), mix(64, 76)] };
+  const nearLeg = lead ? legs.back : legs.front;
+  const farLeg = lead ? legs.front : legs.back;
+  const nearArm = lead ? arms.front : arms.back;
+  const farArm = lead ? arms.back : arms.front;
+  const leg = (row) => `<path d="M${hipX} ${hipY} L${row.knee[0]} ${row.knee[1]} L${row.foot[0]} ${row.foot[1]}"/>`;
+  const arm = (hand) => `<path d="M${shoulderX} ${shoulderY} L${hand[0]} ${hand[1]}"/>`;
   const width = (2.8 - 1.55 * focus).toFixed(2);
   const opacity = (0.4 + 0.6 * focus).toFixed(2);
   const dash = focus < 0.5 ? 'stroke-dasharray="2.2 2.6"' : "";
   const join = focus >= 0.5 ? "miter" : "round";
   const cap = focus >= 0.5 ? "butt" : "round";
+  const tilt = mouth === "up" ? -2.5 : mouth === "down" ? 2.5 : 0;
+  const mouthPath = `M${fixed(headX + 3)} ${fixed(headY + 2 - tilt / 2)} l7 ${tilt}`;
   const bag = spend > 0.05
-    ? `<path d="M${shoulderX} ${shoulderY} L${(hipX - 16).toFixed(1)} ${(hipY - 4).toFixed(1)}"/><rect x="${(hipX - 22).toFixed(1)}" y="${(hipY - 8).toFixed(1)}" width="14" height="16"/>`
+    ? `<path d="M${shoulderX} ${shoulderY} L${fixed(hipX - 16)} ${fixed(hipY - 4)}"/><rect x="${fixed(hipX - 22)}" y="${fixed(hipY - 8)}" width="14" height="16"/>`
     : "";
-  const shoes = spend > 0.3
-    ? `<path d="M${(backFootX - 9).toFixed(1)} ${backFootY} h15 M${(frontFootX - 6).toFixed(1)} ${frontFootY} h16"/>`
-    : "";
-  const bracelet = spend > 0.55
-    ? `<circle cx="${handX}" cy="${handY}" r="3.4"/>`
-    : "";
-  const neckX = (headX + 4).toFixed(1);
-  const neckY = (headY + 18).toFixed(1);
+  const shoe = (foot) => `M${fixed(foot[0] - 8)} ${foot[1]} h15`;
+  const shoes = spend > 0.3 ? `<path d="${shoe(nearLeg.foot)} ${shoe(farLeg.foot)}"/>` : "";
+  const bracelet = spend > 0.55 ? `<circle cx="${nearArm[0]}" cy="${nearArm[1]}" r="3.4"/>` : "";
+  const neckX = fixed(headX + 4);
+  const neckY = fixed(headY + 18);
   const necklace = spend > 0.8
-    ? `<path d="M${(headX - 6).toFixed(1)} ${(headY + 8).toFixed(1)} Q${neckX} ${(headY + 22).toFixed(1)} ${(headX + 12).toFixed(1)} ${(headY + 8).toFixed(1)}"/><circle cx="${neckX}" cy="${neckY}" r="2.4"/>`
+    ? `<path d="M${fixed(headX - 6)} ${fixed(headY + 8)} Q${neckX} ${fixed(headY + 22)} ${fixed(headX + 12)} ${fixed(headY + 8)}"/><circle cx="${neckX}" cy="${neckY}" r="2.4"/>`
     : "";
-  figureEl.innerHTML = `
+  return `
     <g fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="${cap}" stroke-linejoin="${join}" opacity="${opacity}" ${dash}>
+      <g opacity="0.55">${leg(farLeg)}${arm(farArm)}</g>
       <circle cx="${headX}" cy="${headY}" r="11"/>
-      <path d="M${(headX + 3).toFixed(1)} ${(headY + 2).toFixed(1)} h7"/>
-      <path d="M${headX} ${(headY + 11).toFixed(1)} Q${bowX} ${bowY} ${hipX} ${hipY}"/>
-      <path d="M${shoulderX} ${shoulderY} L${backHandX} ${backHandY}"/>
-      <path d="M${shoulderX} ${shoulderY} L${handX} ${handY}"/>
-      <path d="M${hipX} ${hipY} L${backKneeX} ${backKneeY} L${backFootX} ${backFootY}"/>
-      <path d="M${hipX} ${hipY} L${kneeX} ${kneeY} L${frontFootX} ${frontFootY}"/>
+      <path class="mouth" d="${mouthPath}"/>
+      <path d="M${headX} ${fixed(headY + 11)} Q${bowX} ${bowY} ${hipX} ${hipY}"/>
+      ${leg(nearLeg)}${arm(nearArm)}
     </g>
     <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       ${bag}${shoes}${bracelet}${necklace}
     </g>`;
+}
+
+const STRIDE_ONE_MS = 600;
+const STRIDE_SCROLL_MS = 280;
+const BEAT_MS = 700;
+const PULSE_MS = 500;
+const BEAT_MOUTH = { heyday: "up", steady: "flat", mayday: "down" };
+const BEAT_ACCENT = { heyday: -0.06, steady: 0, mayday: 0.14 };
+const REST = { pose: "contact", lead: 0, mouth: "flat", accent: 0 };
+let walk = { ...REST };
+let motionTimers = [];
+let scrollMs = 0;
+
+function figureRates() {
+  return triangleRates(spec, isEntirety(state) ? state.point : CORNERS.center);
+}
+
+function drawFigure(rates) {
+  figureEl.innerHTML = figureMarkup(rates, { ...walk, pose: "contact", lead: 0 });
+}
+
+function walkerMarkup() {
+  return `<svg viewBox="36 6 112 120" aria-hidden="true">${figureMarkup(figureRates(), walk)}</svg>`;
+}
+
+function paintFigures() {
+  if (!spec || !state) return;
+  if (isEntirety(state)) drawFigure(figureRates());
+  const walker = boardEl.querySelector(".climb-walker");
+  if (walker) walker.innerHTML = walkerMarkup();
+}
+
+function later(ms, fn) {
+  motionTimers.push(setTimeout(fn, ms));
+}
+
+function stopMotion() {
+  motionTimers.forEach(clearTimeout);
+  motionTimers = [];
+  walk = { ...REST };
+  scrollMs = 0;
+  boardEl.querySelector(".climb-view")?.classList.remove("moving");
+  payEl.classList.remove("pulse-good", "pulse-bad");
+}
+
+function setNum(el, text) {
+  const num = el.querySelector(".num");
+  if (num) num.textContent = text;
+  else el.textContent = text;
+}
+
+function movePlan(spun) {
+  const strides = spun.moved <= 1 ? 2 : 3;
+  const strideMs = spun.moved <= 1 ? STRIDE_ONE_MS : STRIDE_SCROLL_MS;
+  const walkMs = strides * strideMs;
+  const check = spun.gutChecks?.find((item) => item.landed) || null;
+  return { strides, strideMs, walkMs, check, total: walkMs + (check ? BEAT_MS : 0) };
+}
+
+function playMove(before, spun, plan) {
+  const years = spun.years || [];
+  if (years.length) {
+    setNum(ageEl, String(spun.fromAge));
+    setNum(payEl, money(before.salary));
+    setNum(savingsEl, money(before.cash));
+    savingsEl.classList.toggle("bad", before.cash < 0);
+    savingsEl.classList.toggle("good", before.cash >= 0);
+  }
+  const poses = plan.strides * 2;
+  for (let k = 0; k < poses; k += 1) {
+    later((k * plan.strideMs) / 2, () => {
+      walk = { ...walk, pose: k % 2 ? "passing" : "contact", lead: Math.floor(k / 2) % 2 };
+      paintFigures();
+    });
+  }
+  years.forEach((year, i) => {
+    later(((i + 1) / years.length) * plan.walkMs, () => {
+      setNum(ageEl, String(year.age));
+      setNum(payEl, money(year.salary));
+      setNum(savingsEl, money(year.cash));
+      savingsEl.classList.toggle("bad", year.cash < 0);
+      savingsEl.classList.toggle("good", year.cash >= 0);
+    });
+  });
+  later(plan.walkMs, () => {
+    scrollMs = 0;
+    boardEl.querySelector(".climb-view")?.classList.remove("moving");
+    walk = { ...REST };
+    if (boardKey() !== climbSize) renderBoard();
+    renderStats();
+    paintFigures();
+    if (!plan.check) return;
+    const id = plan.check.id;
+    walk = { ...REST, mouth: BEAT_MOUTH[id], accent: BEAT_ACCENT[id] };
+    paintFigures();
+    playBeat(id);
+    if (id !== "steady") {
+      const pulse = id === "heyday" ? "pulse-good" : "pulse-bad";
+      payEl.classList.add(pulse);
+      later(PULSE_MS, () => payEl.classList.remove(pulse));
+    }
+    later(BEAT_MS, () => {
+      walk = { ...REST };
+      paintFigures();
+    });
+  });
 }
 
 function pointXY(point) {
@@ -952,6 +1085,7 @@ function resumeGame() {
     note("That save is from another version.");
     return;
   }
+  stopMotion();
   state = data.state;
   animEl.checked = Boolean(data.animation);
   speedEl.checked = Boolean(data.speedRun);
@@ -965,6 +1099,7 @@ function resumeGame() {
 
 function newGame() {
   if (!spec) return;
+  stopMotion();
   pointLocked = false;
   inspect = null;
   resetNeedle();
@@ -1041,6 +1176,7 @@ function render() {
 function takeTurn() {
   if (locked) return;
   if (state.phase === "ended") {
+    stopMotion();
     state = createGame(spec, mintSeed(), { ...CORNERS.center }, null);
     pointLocked = false;
     inspect = null;
@@ -1050,19 +1186,26 @@ function takeTurn() {
   }
   if (state.phase !== "play") return;
   inspect = null;
+  stopMotion();
+  const before = state;
   state = spin(spec, state);
   if (speedEl.checked) {
     let guard = 0;
     while (state.phase === "play" && guard++ < 80) state = spin(spec, state);
   }
+  const spun = lastSpin();
+  const fresh = spun && !state.death && spun.n > before.log.length ? spun : null;
+  const plan = motionOn() && fresh ? movePlan(fresh) : null;
+  scrollMs = plan ? plan.walkMs : 0;
   locked = motionOn();
   render();
   if (!speedEl.checked) playBeat(state.death ? "death" : "land");
+  if (plan) playMove(before, fresh, plan);
   if (locked) {
     setTimeout(() => {
       locked = false;
       renderControls();
-    }, 720);
+    }, Math.max(720, plan?.total || 0));
   }
 }
 
@@ -1140,21 +1283,30 @@ saveBtn.addEventListener("click", saveGame);
 resumeBtn.addEventListener("click", resumeGame);
 resumeOpenBtn.addEventListener("click", resumeGame);
 newGameBtn.addEventListener("click", newGame);
-animEl.addEventListener("change", () => renderControls());
+animEl.addEventListener("change", () => {
+  if (!motionOn()) stopMotion();
+  renderControls();
+  if (spec && state) renderBoard();
+});
 speedEl.addEventListener("change", () => renderControls());
+
+function boardKey() {
+  const viewW = Math.max(boardEl.clientWidth || 0, boardEl.parentElement?.clientWidth || 0, 360);
+  const viewH = Math.max(boardEl.clientHeight || 0, boardEl.parentElement?.clientHeight || 0, 280);
+  return `${viewW}x${viewH}`;
+}
 
 let resizeTimer = 0;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(renderBoard, 150);
+  resizeTimer = setTimeout(() => {
+    if (!scrollMs) renderBoard();
+  }, 150);
 });
 
 new ResizeObserver(() => {
-  if (!spec || !state) return;
-  const viewW = boardEl.clientWidth || boardEl.parentElement?.clientWidth || 0;
-  const viewH = boardEl.clientHeight || boardEl.parentElement?.clientHeight || 0;
-  const key = `${viewW}x${viewH}`;
-  if (!viewH || key === climbSize) return;
+  if (!spec || !state || scrollMs) return;
+  if (boardKey() === climbSize) return;
   renderBoard();
 }).observe(boardEl);
 
